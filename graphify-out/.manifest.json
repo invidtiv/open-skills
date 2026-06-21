@@ -1,0 +1,27 @@
+{
+  "files": {
+    "code": [
+      "openskills.py",
+      "support-billing-recovery/tests/test_basic.py",
+      "support-billing-recovery/adapters/claude-code/tests/test_basic.py",
+      "support-billing-recovery/adapters/codex/tests/test_basic.py",
+      "support-billing-recovery/adapters/cursor/tests/test_basic.py",
+      "support-billing-recovery/adapters/generic/tests/test_basic.py",
+      "support-billing-recovery/adapters/hermes/tests/test_basic.py",
+      "docs/index.html"
+    ],
+    "document": [
+      "README.md",
+      "SPEC.md",
+      "support-billing-recovery/SKILL.md",
+      "support-billing-recovery/manifest.yaml",
+      "support-billing-recovery/adapters/claude-code.md",
+      "support-billing-recovery/adapters/codex.md",
+      "support-billing-recovery/adapters/cursor.mdc",
+      "support-billing-recovery/adapters/generic.md",
+      "support-billing-recovery/adapters/hermes.md"
+    ]
+  },
+  "total_files": 17,
+  "total_words": 15000
+}

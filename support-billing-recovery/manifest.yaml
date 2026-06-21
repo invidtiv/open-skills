@@ -1,0 +1,58 @@
+# What this skill needs and what it touches
+dependencies:
+  tools:
+    - name: stripe-cli
+      required: true
+      check: "stripe --version"
+    - name: curl
+      required: true
+      check: "curl --version"
+    - name: python3
+      required: true
+      check: "python3 --version"
+  data:
+    - description: "Active Stripe API key in environment"
+      env_var: STRIPE_API_KEY
+      required: true
+    - description: "Support ticket API key"
+      env_var: SUPPORT_TICKET_API_KEY
+      required: false
+    - description: "Support ticket API base URL"
+      env_var: SUPPORT_TICKET_API_URL
+      required: false
+    - description: "Customer email from the support ticket"
+      env_var: CUSTOMER_EMAIL
+      required: true
+    - description: "Support ticket ID being resolved"
+      env_var: TICKET_ID
+      required: false
+  skills: []
+
+permissions:
+  network: true
+  filesystem:
+    - path: /tmp/billing-recovery/
+      access: write
+  api_keys:
+    - STRIPE_API_KEY
+    - SUPPORT_TICKET_API_KEY
+
+compatibility:
+  - platform: hermes
+    min_version: "0.9"
+  - platform: claude-code
+    min_version: "1.0"
+  - platform: cursor
+    min_version: "0.45"
+  - platform: codex
+    min_version: "1.0"
+  - platform: generic
+    notes: "Any agent that can read markdown and execute shell commands"
+
+tests:
+  - name: dry-run-validation
+    command: "python3 tests/test_basic.py --dry-run"
+    expected_exit: 0
+  - name: manifest-valid
+    command: "python3 tests/test_basic.py --check-manifest"
+    expected_exit: 0

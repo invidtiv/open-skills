@@ -1,0 +1,750 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Open Skills — Spec & Usage Manual</title>
+<style>
+  :root {
+    --bg: #0d1117;
+    --bg-card: #161b22;
+    --bg-code: #1c2128;
+    --border: #30363d;
+    --text: #e6edf3;
+    --text-dim: #8b949e;
+    --accent: #58a6ff;
+    --accent-2: #f0883e;
+    --green: #3fb950;
+    --red: #f85149;
+    --yellow: #d29922;
+    --purple: #bc8cff;
+    --mono: 'SF Mono', 'Fira Code', 'JetBrains Mono', 'Cascadia Code', monospace;
+    --sans: -apple-system, 'Segoe UI', 'Helvetica Neue', Arial, sans-serif;
+  }
+  * { margin: 0; padding: 0; box-sizing: border-box; }
+  html { scroll-behavior: smooth; }
+  body {
+    background: var(--bg);
+    color: var(--text);
+    font-family: var(--sans);
+    line-height: 1.7;
+    font-size: 16px;
+    -webkit-font-smoothing: antialiased;
+  }
+
+  /* ─── layout ─── */
+  .container { max-width: 960px; margin: 0 auto; padding: 0 24px; }
+
+  /* ─── hero ─── */
+  .hero {
+    padding: 80px 24px 60px;
+    text-align: center;
+    background: linear-gradient(180deg, #0d1117 0%, #161b22 100%);
+    border-bottom: 1px solid var(--border);
+  }
+  .hero h1 {
+    font-size: 2.8rem;
+    font-weight: 800;
+    letter-spacing: -0.03em;
+    margin-bottom: 12px;
+    background: linear-gradient(135deg, var(--accent) 0%, var(--purple) 100%);
+    -webkit-background-clip: text;
+    -webkit-text-fill-color: transparent;
+  }
+  .hero .tagline {
+    font-size: 1.15rem;
+    color: var(--text-dim);
+    font-style: italic;
+    max-width: 620px;
+    margin: 0 auto 32px;
+  }
+  .hero .version {
+    display: inline-block;
+    padding: 4px 14px;
+    border: 1px solid var(--border);
+    border-radius: 20px;
+    font-family: var(--mono);
+    font-size: 0.8rem;
+    color: var(--text-dim);
+    background: var(--bg-card);
+  }
+  .hero .badges {
+    margin-top: 28px;
+    display: flex;
+    gap: 12px;
+    justify-content: center;
+    flex-wrap: wrap;
+  }
+  .badge {
+    padding: 6px 16px;
+    border-radius: 6px;
+    font-family: var(--mono);
+    font-size: 0.82rem;
+    font-weight: 600;
+  }
+  .badge-green { background: rgba(63,185,80,0.15); color: var(--green); border: 1px solid rgba(63,185,80,0.3); }
+  .badge-blue  { background: rgba(88,166,255,0.15); color: var(--accent); border: 1px solid rgba(88,166,255,0.3); }
+  .badge-orange{ background: rgba(240,136,62,0.15); color: var(--accent-2); border: 1px solid rgba(240,136,62,0.3); }
+
+  /* ─── nav ─── */
+  .nav {
+    position: sticky;
+    top: 0;
+    z-index: 100;
+    background: var(--bg);
+    border-bottom: 1px solid var(--border);
+    padding: 10px 24px;
+  }
+  .nav-inner {
+    max-width: 960px;
+    margin: 0 auto;
+    display: flex;
+    gap: 24px;
+    overflow-x: auto;
+    white-space: nowrap;
+  }
+  .nav a {
+    color: var(--text-dim);
+    text-decoration: none;
+    font-size: 0.9rem;
+    font-weight: 500;
+    transition: color 0.2s;
+  }
+  .nav a:hover { color: var(--accent); }
+
+  /* ─── sections ─── */
+  section { padding: 56px 0; border-bottom: 1px solid var(--border); }
+  section:last-child { border-bottom: none; }
+  h2 {
+    font-size: 1.8rem;
+    font-weight: 700;
+    margin-bottom: 8px;
+    letter-spacing: -0.02em;
+  }
+  h2 .num {
+    color: var(--accent);
+    font-family: var(--mono);
+    font-size: 1rem;
+    font-weight: 400;
+    margin-right: 10px;
+    vertical-align: middle;
+  }
+  h3 {
+    font-size: 1.2rem;
+    font-weight: 600;
+    margin-top: 36px;
+    margin-bottom: 12px;
+    color: var(--text);
+  }
+  h3 .tag {
+    font-family: var(--mono);
+    font-size: 0.72rem;
+    padding: 2px 8px;
+    border-radius: 4px;
+    margin-left: 8px;
+    vertical-align: middle;
+  }
+  h3 .tag.req { background: rgba(248,81,73,0.15); color: var(--red); }
+  h3 .tag.opt { background: rgba(210,153,34,0.15); color: var(--yellow); }
+  p { margin-bottom: 16px; color: var(--text); }
+  ul, ol { margin-bottom: 16px; padding-left: 24px; }
+  li { margin-bottom: 8px; }
+  .lead { font-size: 1.1rem; color: var(--text-dim); margin-bottom: 28px; }
+  strong { color: #fff; font-weight: 700; }
+  em { color: var(--text-dim); }
+
+  /* ─── code ─── */
+  .code-block {
+    background: var(--bg-code);
+    border: 1px solid var(--border);
+    border-radius: 8px;
+    padding: 20px 24px;
+    overflow-x: auto;
+    margin: 16px 0 24px;
+    font-family: var(--mono);
+    font-size: 0.87rem;
+    line-height: 1.65;
+  }
+  .code-block .label {
+    font-size: 0.75rem;
+    color: var(--text-dim);
+    margin-bottom: 8px;
+    text-transform: uppercase;
+    letter-spacing: 0.05em;
+  }
+  .code-block pre { margin: 0; }
+  .inline-code {
+    font-family: var(--mono);
+    font-size: 0.88rem;
+    background: var(--bg-code);
+    border: 1px solid var(--border);
+    padding: 1px 6px;
+    border-radius: 4px;
+    color: var(--accent);
+  }
+
+  /* syntax highlight (manual spans) */
+  .syn-c { color: #6e7681; } /* comment */
+  .syn-k { color: var(--purple); } /* keyword/key */
+  .syn-s { color: #7ee787; } /* string */
+  .syn-n { color: var(--accent-2); } /* number */
+  .syn-f { color: var(--accent); } /* function */
+  .syn-y { color: var(--yellow); } /* yaml key */
+  .syn-p { color: var(--text-dim); } /* punctuation */
+
+  /* ─── cards ─── */
+  .card-grid {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(280px, 1fr));
+    gap: 16px;
+    margin: 24px 0;
+  }
+  .card {
+    background: var(--bg-card);
+    border: 1px solid var(--border);
+    border-radius: 10px;
+    padding: 24px;
+    transition: border-color 0.2s;
+  }
+  .card:hover { border-color: var(--accent); }
+  .card .icon { font-size: 1.6rem; margin-bottom: 12px; }
+  .card h4 { font-size: 1.05rem; margin-bottom: 8px; font-weight: 700; }
+  .card p { font-size: 0.9rem; color: var(--text-dim); margin: 0; }
+
+  /* ─── tables ─── */
+  .table-wrap { overflow-x: auto; margin: 20px 0; }
+  table {
+    width: 100%;
+    border-collapse: collapse;
+    font-size: 0.9rem;
+  }
+  th {
+    text-align: left;
+    padding: 12px 16px;
+    background: var(--bg-card);
+    border: 1px solid var(--border);
+    font-weight: 600;
+    color: var(--text);
+    font-size: 0.82rem;
+    text-transform: uppercase;
+    letter-spacing: 0.04em;
+  }
+  td {
+    padding: 12px 16px;
+    border: 1px solid var(--border);
+    color: var(--text-dim);
+  }
+  td:first-child { color: var(--text); font-weight: 500; }
+  tr:hover td { background: rgba(88,166,255,0.04); }
+
+  /* ─── checklist ─── */
+  .checklist { list-style: none; padding: 0; counter-reset: check; }
+  .checklist li {
+    counter-increment: check;
+    display: flex;
+    align-items: flex-start;
+    gap: 14px;
+    padding: 16px 20px;
+    background: var(--bg-card);
+    border: 1px solid var(--border);
+    border-radius: 8px;
+    margin-bottom: 10px;
+  }
+  .checklist li::before {
+    content: counter(check);
+    flex-shrink: 0;
+    width: 28px;
+    height: 28px;
+    border-radius: 50%;
+    background: var(--accent);
+    color: var(--bg);
+    font-family: var(--mono);
+    font-weight: 700;
+    font-size: 0.85rem;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+  }
+  .checklist .ck-name { font-weight: 700; color: var(--text); }
+  .checklist .ck-q { display: block; color: var(--text-dim); font-size: 0.9rem; margin-top: 2px; }
+
+  /* ─── callout ─── */
+  .callout {
+    border-left: 4px solid var(--accent);
+    background: rgba(88,166,255,0.08);
+    padding: 20px 24px;
+    border-radius: 0 8px 8px 0;
+    margin: 24px 0;
+  }
+  .callout.warn { border-left-color: var(--yellow); background: rgba(210,153,34,0.08); }
+  .callout.danger { border-left-color: var(--red); background: rgba(248,81,73,0.08); }
+  .callout.success { border-left-color: var(--green); background: rgba(63,185,80,0.08); }
+  .callout .title { font-weight: 700; margin-bottom: 6px; }
+  .callout p:last-child { margin-bottom: 0; }
+
+  /* ─── one-question ─── */
+  .one-q {
+    text-align: center;
+    padding: 40px;
+    background: var(--bg-card);
+    border: 1px solid var(--border);
+    border-radius: 12px;
+    margin: 28px 0;
+  }
+  .one-q .quote {
+    font-size: 1.35rem;
+    font-style: italic;
+    color: var(--text);
+    max-width: 640px;
+    margin: 0 auto 24px;
+    line-height: 1.6;
+  }
+  .one-q .quote::before { content: '"'; color: var(--accent); font-size: 2rem; }
+  .one-q .quote::after { content: '"'; color: var(--accent); font-size: 2rem; }
+
+  /* ─── debt cards ─── */
+  .debt-grid {
+    display: grid;
+    grid-template-columns: repeat(2, 1fr);
+    gap: 16px;
+    margin: 24px 0;
+  }
+  @media (max-width: 640px) { .debt-grid { grid-template-columns: 1fr; } }
+  .debt-card {
+    background: var(--bg-card);
+    border: 1px solid var(--border);
+    border-radius: 10px;
+    padding: 24px;
+    border-top: 3px solid var(--red);
+  }
+  .debt-card .num {
+    font-family: var(--mono);
+    font-size: 0.75rem;
+    color: var(--red);
+    margin-bottom: 8px;
+  }
+  .debt-card h4 { font-size: 1rem; margin-bottom: 8px; }
+  .debt-card p { font-size: 0.88rem; color: var(--text-dim); margin: 0; }
+
+  /* ─── file tree ─── */
+  .tree {
+    font-family: var(--mono);
+    font-size: 0.85rem;
+    line-height: 1.8;
+    color: var(--text-dim);
+    background: var(--bg-code);
+    border: 1px solid var(--border);
+    border-radius: 8px;
+    padding: 20px 24px;
+    margin: 16px 0;
+    overflow-x: auto;
+  }
+  .tree .dir { color: var(--accent); font-weight: 600; }
+  .tree .file { color: var(--text); }
+  .tree .comment { color: #6e7681; }
+
+  /* ─── CLI output ─── */
+  .terminal-output {
+    background: #010409;
+    border: 1px solid var(--border);
+    border-radius: 8px;
+    padding: 18px 24px;
+    font-family: var(--mono);
+    font-size: 0.84rem;
+    line-height: 1.7;
+    overflow-x: auto;
+    margin: 16px 0;
+  }
+  .terminal-output .prompt { color: var(--green); }
+  .terminal-output .ok { color: var(--green); }
+  .terminal-output .warn { color: var(--yellow); }
+  .terminal-output .err { color: var(--red); }
+  .terminal-output .dim { color: var(--text-dim); }
+  .terminal-output .hi { color: var(--accent); }
+
+  /* ─── footer ─── */
+  footer {
+    padding: 40px 24px;
+    text-align: center;
+    border-top: 1px solid var(--border);
+    background: var(--bg-card);
+  }
+  footer p { color: var(--text-dim); font-size: 0.88rem; }
+  footer a { color: var(--accent); text-decoration: none; }
+
+  /* ─── divider ─── */
+  .divider {
+    height: 1px;
+    background: linear-gradient(90deg, transparent, var(--border), transparent);
+    margin: 40px 0;
+  }
+</style>
+</head>
+<body>
+
+<!-- ═══ HERO ═══ -->
+<div class="hero">
+  <h1>Open Skills</h1>
+  <p class="tagline">The way you work should be yours, not rented back to you.</p>
+  <div class="version">Specification v2.0.0 · CLI v2.0.0</div>
+  <div class="badges">
+    <span class="badge badge-green">✓ Anatomy check validated</span>
+    <span class="badge badge-blue">Local MCP Server</span>
+    <span class="badge badge-orange">MIT licensed</span>
+  </div>
+</div>
+
+<!-- ═══ NAV ═══ -->
+<nav class="nav">
+  <div class="nav-inner">
+    <a href="#manifesto">Manifesto</a>
+    <a href="#scoping">Scoping</a>
+    <a href="#anatomy">Anatomy</a>
+    <a href="#checklist">Work Package</a>
+    <a href="#one-question">One-Question Test</a>
+    <a href="#cli">CLI Manual</a>
+    <a href="#runbooks">Runbooks</a>
+    <a href="#mcp">MCP Server</a>
+    <a href="#extractor">Extractor</a>
+  </div>
+</nav>
+
+<!-- ═══ 1. MANIFESTO ═══ -->
+<section id="manifesto">
+  <div class="container">
+    <h2><span class="num">01</span>The Manifesto</h2>
+    <p class="lead">Your skills are leaving your hands. The question is whether they'll still be yours when they get there.</p>
+
+    <p>For most of human history a skill lived in a person. You knew how to research, write, code, test, review work, and recover when something broke. You carried the standards, the shortcuts, the taste, and the checks that kept bad work from becoming real damage. AI is turning that into software. Your way of working can now become prompts, <span class="inline-code">skill.md</span> files, runbooks, scripts, MCP configs, permission boundaries, and agent workflows.</p>
+
+    <p>The thing that used to live in your hands can now live in a harness. <strong>That is one of the biggest opportunities in AI.</strong> It is also one of the biggest ownership fights. Because if your skills are going to live outside your hands, they should not belong to a rent-a-brain.</p>
+
+    <div class="card-grid">
+      <div class="card">
+        <div class="icon">🔓</div>
+        <h4>Not to Claude</h4>
+        <p>Because it shipped the best skill format this quarter.</p>
+      </div>
+      <div class="card">
+        <div class="icon">🔧</div>
+        <h4>Not to Codex</h4>
+        <p>Because it gave you the best workbench.</p>
+      </div>
+      <div class="card">
+        <div class="icon">📝</div>
+        <h4>Not to Cursor</h4>
+        <p>Because the project started there.</p>
+      </div>
+      <div class="card">
+        <div class="icon">💬</div>
+        <h4>Not to ChatGPT</h4>
+        <p>Because the subscription was convenient.</p>
+      </div>
+    </div>
+
+    <p>They should be <strong>yours</strong>. Visible, movable, inspectable, testable, and available wherever you work.</p>
+
+    <div class="callout">
+      <div class="title">The gap</div>
+      <p>Today almost none of that is true. The prompt copies over. The intention copies over. The <strong>skill</strong> does not. So you rebuild it from memory, a teammate improves a different copy and never tells you, and your best workflow ends up stranded in a chat history nobody can find again.</p>
+      <p><strong>You are not short on intelligence or context. You are short on a way to carry the procedure itself.</strong></p>
+    </div>
+  </div>
+</section>
+
+<!-- ═══ 2. SCOPING ═══ -->
+<section id="scoping">
+  <div class="container">
+    <h2><span class="num">02</span>The Scoping & Directories</h2>
+    <p class="lead">Predictable file hierarchies binding skills globally or locally to your repository.</p>
+
+    <h3>Global Scope</h3>
+    <p>Lives in your user configuration directory at <span class="inline-code">~/.config/open-skills/</span>. These skills are bound to your user session across all projects.</p>
+    <div class="tree">
+~/.config/open-skills/
+├── <span class="dir">skills/</span>
+│   ├── <span class="dir">personal-voice/</span>
+│   │   ├── <span class="file">skill.md</span>
+│   │   └── <span class="file">voice-samples/</span>
+│   └── <span class="dir">current-search/</span>
+│       └── <span class="file">skill.md</span>
+└── <span class="dir">runbooks/</span>
+    └── <span class="file">content-pipeline.md</span>
+    </div>
+
+    <h3>Local Scope</h3>
+    <p>Lives inside your active project repository at <span class="inline-code">.open-skills/</span>. These skills are checked into git and shared across teammates working on the project.</p>
+    <div class="tree">
+your-project-repo/.open-skills/
+├── <span class="dir">skills/</span>
+│   ├── <span class="dir">browser-qa/</span>
+│   │   └── <span class="file">skill.md</span>
+│   └── <span class="dir">db-migration/</span>
+│       └── <span class="file">skill.md</span>
+└── <span class="dir">runbooks/</span>
+    └── <span class="file">release-day.md</span>
+    </div>
+  </div>
+</section>
+
+<!-- ═══ 3. ANATOMY ═══ -->
+<section id="anatomy">
+  <div class="container">
+    <h2><span class="num">03</span>Anatomy of a skill.md File</h2>
+    <p class="lead">A skill is a markdown file parsed by code. It uses a strict YAML frontmatter block to define boundaries, required tools, and triggers.</p>
+
+    <div class="code-block">
+      <div class="label">skill.md</div>
+      <pre><span class="syn-p">---</span>
+<span class="syn-y">name</span><span class="syn-p">:</span> <span class="syn-s">browser-qa</span>
+<span class="syn-y">description</span><span class="syn-p">:</span> <span class="syn-s">Verifies frontend changes across responsive breakpoints.</span>
+<span class="syn-y">triggers</span><span class="syn-p">:</span>
+  <span class="syn-p">-</span> <span class="syn-s">"on UI change"</span>
+  <span class="syn-p">-</span> <span class="syn-s">"before calling a layout task done"</span>
+<span class="syn-y">boundaries</span><span class="syn-p">:</span>
+  <span class="syn-p">-</span> <span class="syn-s">"Do not test on production databases."</span>
+  <span class="syn-p">-</span> <span class="syn-s">"Never bypass console error checks."</span>
+<span class="syn-y">required_tools</span><span class="syn-p">:</span>
+  <span class="syn-p">-</span> <span class="syn-s">headless-browser</span>
+  <span class="syn-p">-</span> <span class="syn-s">terminal</span>
+<span class="syn-y">output_format</span><span class="syn-p">:</span> <span class="syn-s">"QA_EVIDENCE.md"</span>
+<span class="syn-p">---</span>
+
+<span class="syn-k">## Objective</span>
+Ensure the active route renders correctly on desktop and mobile without runtime errors.
+
+<span class="syn-k">## Procedure</span>
+1. Identify the local server port. If not running, start it using `npm run dev`.
+2. Open the browser tool and navigate to the modified routes.
+3. Change viewport to 375x812 (Mobile) and inspect for overlapping text or broken layouts.
+
+<span class="syn-k">## Verification Contract (NON-NEGOTIABLE)</span>
+Your job is NOT done until you provide:
+- [ ] Console logs showing zero uncaught exceptions.
+- [ ] Saved screenshots of both Desktop and Mobile views in `./qa-artifacts/`.</pre>
+    </div>
+
+    <h3>Required Sections</h3>
+    <ul>
+      <li><strong>YAML Frontmatter</strong> — Slugified name, description, trigger keywords, strict boundaries, required tools, and output format.</li>
+      <li><strong>## Objective</strong> — High-level description of what the procedure accomplishes.</li>
+      <li><strong>## Procedure</strong> — Step-by-step instructions.</li>
+      <li><strong>## Verification Contract (NON-NEGOTIABLE)</strong> — Markdown checklist that must be filled before completion.</li>
+    </ul>
+  </div>
+</section>
+
+<!-- ═══ 4. WORK PACKAGE CHECKLIST ═══ -->
+<section id="checklist">
+  <div class="container">
+    <h2><span class="num">04</span>The Work Package Checklist</h2>
+    <p class="lead">Eight checks that separate a skill you actually own from a lucky setup you happened to land in one app.</p>
+
+    <ol class="checklist">
+      <li>
+        <div>
+          <span class="ck-name">Visible</span>
+          <span class="ck-q">Can you find it without searching chat history?</span>
+        </div>
+      </li>
+      <li>
+        <div>
+          <span class="ck-name">Movable</span>
+          <span class="ck-q">Can you install it on a different platform in under 5 minutes?</span>
+        </div>
+      </li>
+      <li>
+        <div>
+          <span class="ck-name">Inspectable</span>
+          <span class="ck-q">Can you read the full procedure without running anything?</span>
+        </div>
+      </li>
+      <li>
+        <div>
+          <span class="ck-name">Testable</span>
+          <span class="ck-q">Does it have a verification step that confirms it worked?</span>
+        </div>
+      </li>
+      <li>
+        <div>
+          <span class="ck-name">Versioned</span>
+          <span class="ck-q">Does it have a version number and a changelog?</span>
+        </div>
+      </li>
+      <li>
+        <div>
+          <span class="ck-name">Deps-declared</span>
+          <span class="ck-q">Are all tool/data/API dependencies listed?</span>
+        </div>
+      </li>
+      <li>
+        <div>
+          <span class="ck-name">Perm-bounded</span>
+          <span class="ck-q">Are its permissions (network, files, keys) explicit?</span>
+        </div>
+      </li>
+      <li>
+        <div>
+          <span class="ck-name">Platform-agnostic</span>
+          <span class="ck-q">Does the core procedure work without platform-specific syntax?</span>
+        </div>
+      </li>
+    </ol>
+  </div>
+</section>
+
+<!-- ═══ 5. ONE-QUESTION TEST ═══ -->
+<section id="one-question">
+  <div class="container">
+    <h2><span class="num">05</span>The One-Question Test</h2>
+    <div class="one-q">
+      <p class="quote">If I deleted this app tomorrow, how long would it take me to rebuild this workflow somewhere else?</p>
+    </div>
+  </div>
+</section>
+
+<!-- ═══ 6. CLI MANUAL ═══ -->
+<section id="cli">
+  <div class="container">
+    <h2><span class="num">06</span>CLI Usage Manual</h2>
+    <p class="lead">Control your scoped workspace from the shell.</p>
+
+    <h3>Initializing Skills</h3>
+    <div class="code-block">
+      <pre><span class="syn-f">$</span> python3 openskills.py init browser-qa --local
+<span class="ok">✓</span> Created Open Skill 'browser-qa' at /home/bsdev/open-skills/.open-skills/skills/browser-qa/skill.md</pre>
+    </div>
+
+    <h3>Validating Anatomy</h3>
+    <div class="code-block">
+      <pre><span class="syn-f">$</span> python3 openskills.py validate browser-qa
+
+Open Skills Validation — skill.md (browser-qa/)
+
+  [✓] Frontmatter block exists
+  [✓] Frontmatter field 'name' declared: 'browser-qa'
+  [✓] Frontmatter field 'description' declared: 'Verifies frontend changes...'
+  [✓] Frontmatter field 'triggers' declared (2 items)
+  [✓] Frontmatter field 'boundaries' declared (2 items)
+  [✓] Frontmatter field 'required_tools' declared (2 items)
+  [✓] Frontmatter field 'output_format' declared: 'QA_EVIDENCE.md'
+  [✓] Section '## Objective' exists
+  [✓] Section '## Procedure' exists
+  [✓] Section '## Verification Contract (NON-NEGOTIABLE)' exists
+  [✓] Verification Contract has checklist items (2 found)
+
+  Validation result: 0 errors found.
+<span class="ok">✓</span> This is a valid Open Skill.</pre>
+    </div>
+
+    <h3>Listing All Scopes</h3>
+    <div class="code-block">
+      <pre><span class="syn-f">$</span> python3 openskills.py list
+Found 2 Open Skill(s):
+
+  browser-qa [Local]
+    Path: /home/bsdev/open-skills/.open-skills/skills/browser-qa/skill.md
+    Description: Verifies frontend changes across responsive breakpoints.
+  
+  personal-voice [Global]
+    Path: /home/bsdev/.config/open-skills/skills/personal-voice/skill.md
+    Description: Draft matching structural voice standards.</pre>
+    </div>
+  </div>
+</section>
+
+<!-- ═══ 7. RUNBOOKS ═══ -->
+<section id="runbooks">
+  <div class="container">
+    <h2><span class="num">07</span>Runbooks as Composition</h2>
+    <p class="lead">Runbooks chain primitive skills together. Instead of code, a runbook acts as a structural state-machine manifesto that instructs the agent how to pipe outputs from one skill to the next.</p>
+
+    <div class="table-wrap">
+      <table>
+        <thead>
+          <tr><th>Phase</th><th>Active Skill</th><th>Input</th><th>Expected Verified Output</th></tr>
+        </thead>
+        <tbody>
+          <tr><td>01</td><td>media-transcriber</td><td>Raw audio file</td><td>Verified .txt clean transcript</td></tr>
+          <tr><td>02</td><td>personal-voice</td><td>Clean transcript</td><td>Markdown draft matching structural voice standards</td></tr>
+          <tr><td>03</td><td>browser-qa</td><td>Local deployment route</td><td>Screenshot artifacts + zero console errors</td></tr>
+        </tbody>
+      </table>
+    </div>
+
+    <h3>CLI runbook Commands</h3>
+    <div class="code-block">
+      <pre><span class="syn-c"># Start execution of a runbook phase list</span>
+<span class="syn-f">$</span> python3 openskills.py runbook start release-day
+<span class="ok">✓</span> Started runbook 'release-day' with 3 phases. Active phase: 01.
+
+<span class="syn-c"># Check execution status (updates are written to local .runbook-state)</span>
+<span class="syn-f">$</span> python3 openskills.py runbook status
+
+Active Runbook: release-day
+Status Updated: 2026-06-21T21:43:48
+
+Phase  | Active Skill         | Input                     | Expected Output                     | Status    
+--------------------------------------------------------------------------------------------------------------
+▶ 01   | media-transcriber    | Raw audio file            | Verified .txt clean transcript      | active    
+  02   | personal-voice       | Clean transcript          | Markdown draft matching voice       | pending   
+  03   | browser-qa           | Local deployment route    | Screenshot artifacts + zero errors  | pending   
+
+<span class="syn-c"># Advance to the next phase</span>
+<span class="syn-f">$</span> python3 openskills.py runbook next
+<span class="ok">✓</span> Phase 01 marked completed. Advanced to Phase 02: personal-voice</pre>
+    </div>
+  </div>
+</section>
+
+<!-- ═══ 8. MCP SERVER ═══ -->
+<section id="mcp">
+  <div class="container">
+    <h2><span class="num">08</span>The Model Context Protocol (MCP) Server</h2>
+    <p class="lead">Expose your skills and runbooks dynamically to Cursor, Claude Code, and Codex.</p>
+    
+    <p>A local background process reads your local and global directories and exposes them to any active agent session. Exposes the following capabilities:</p>
+    
+    <ul>
+      <li><strong>Prompts (<span class="inline-code">open-skills-context</span>)</strong> — Feeds the active procedures and structures directly into the system prompt context on agent boot up.</li>
+      <li><strong>Tools (<span class="inline-code">check_triggers</span>)</strong> — Monitores the user's queries. If the query matches the triggers defined in the skill (e.g. "landing page changes"), it suggests or injects the appropriate skill.</li>
+      <li><strong>Resources (<span class="inline-code">open-skills://skills/local/{name}</span>)</strong> — Exposes the raw markdown files directly as inspectable resources.</li>
+    </ul>
+
+    <div class="code-block">
+      <div class="label">Launch MCP Server</div>
+      <pre><span class="syn-f">$</span> python3 openskills.py mcp start
+Starting Open Skills MCP Server...</pre>
+    </div>
+  </div>
+</section>
+
+<!-- ═══ 9. EXTRACTOR ═══ -->
+<section id="extractor">
+  <div class="container">
+    <h2><span class="num">09</span>The Flywheel: session-to-skill Extractor</h2>
+    <p class="lead">Save brilliant workflows from disappearing in chat logs.</p>
+    <p>The extractor reads the latest chat session logs from your local tools (e.g. Claude Code's log files or Superpowers SQLite databases), builds a transcript, and passes it to a local/completions model to automatically extract repeatable technical procedures as Open Skills.</p>
+
+    <div class="code-block">
+      <pre><span class="syn-f">$</span> python3 openskills.py extract --last-session
+Retrieving latest session chat logs...
+Retrieved session log (length: 59026 characters).
+Calling OpenAI API to extract repeatable procedures...
+<span class="ok">✓</span> Extracted skill 'ai-chat-frontend-design' and wrote draft to: /home/bsdev/open-skills/.open-skills/skills/pending-review/ai-chat-frontend-design/skill.md
+  You can now review, modify, and commit it.</pre>
+    </div>
+  </div>
+</section>
+
+<!-- ═══ FOOTER ═══ -->
+<footer>
+  <div class="container">
+    <p><strong>Open Skills</strong> — Specification v2.0.0 · CLI v2.0.0 · MIT License</p>
+    <p style="margin-top:8px;">Your skills belong to you. The format belongs to everyone.</p>
+    <p style="margin-top:16px; font-style:italic;">The pain is already here, but so is the fix, and it is closer than it looks.<br>You do not need a new platform or a new subscription. You need to own the way you already work and make it move with you.</p>
+  </div>
+</footer>
+
+</body>
+</html>

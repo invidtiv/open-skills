@@ -1,0 +1,8 @@
+.open-skills/.runbook-state
+.runbook-state
+__pycache__/
+*.pyc
+.pytest_cache/
+.vscode/
+.idea/
+*.log
