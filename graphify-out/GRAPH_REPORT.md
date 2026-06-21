@@ -111,3 +111,68 @@ _Questions this graph is uniquely positioned to answer:_
   _Cohesion score 0.08620689655172414 - nodes in this community are weakly interconnected._
 - **Should `MCP Server` be split into smaller, more focused modules?**
   _Cohesion score 0.08 - nodes in this community are weakly interconnected._
+
+## Graph Traversal Findings
+
+### Q1: Why does `parse_frontmatter()` bridge Skill Spec & Adapters, Platform Export, and MCP Server?
+
+Two `parse_frontmatter` nodes exist in the graph — the AST-extracted function (community 1, CLI Commands, degree 6) and the semantic-extracted concept (community 0, Skill Spec & Adapters, degree 8). The semantic node is the bridge with betweenness centrality 0.114.
+
+It connects three communities:
+
+| Community | Role | Connection |
+|-----------|------|------------|
+| **0 — Skill Spec & Adapters** | Home community | Called by `list_skills`, `check_triggers`, `cmd_score`, `cmd_validate`, and the Extractor Flywheel |
+| **2 — MCP Server** | Consumer | `mcp_server.py` calls it directly to read skill files |
+| **9 — Platform Export** | Consumer | `cmd_export()` calls it to read adapter templates |
+
+**Verdict: Justified chokepoint, not a code smell.** Every pathway that needs to understand a skill file — MCP server, CLI validation/scoring, or the export pipeline — must parse YAML frontmatter first. `parse_frontmatter()` is the single gateway to skill metadata. Splitting it would create duplication without reducing coupling.
+
+### Q2: What connects the weakly-connected resource/tool description nodes?
+
+69 nodes in the graph have degree ≤ 1. Nearly all are MCP tool and resource docstrings from `mcp_server.py` — descriptions like "Read a local skill's markdown content", "List all available skills with metadata", etc. Each connects only to its parent function via a single `rationale_for` edge.
+
+Examples:
+- `Read a local skill's markdown content.` → `get_local_skill_resource()` (degree 1)
+- `Read a global skill's markdown content.` → `get_global_skill_resource()` (degree 1)
+- `Read a local runbook's content.` → `get_local_runbook_resource()` (degree 1)
+
+**Verdict: Not a documentation gap.** These are documentation leaf nodes — metadata about functions, not independent concepts. The graph correctly represents that docstrings explain functions. These could be folded into the function nodes as attributes to reduce graph noise, but no architectural edges are missing.
+
+### Q3: Should Skill Spec & Adapters (community 0) be split?
+
+- **29 nodes**, **35 internal edges**, **2 cross-community edges**
+- Cohesion: **0.086**
+- Spans **15 source files**: SPEC.md (8 nodes), openskills.py (5), mcp_server.py (4), plus individual adapter docs, the example skill, runbooks, and pending skills
+
+The low cohesion reflects that these nodes share a conceptual domain (the Open Skills spec) but don't call each other directly. SPEC.md concepts like "Work Package Checklist" and "One-Question Test" are referenced by code but don't reference each other — they are defined together and implemented separately.
+
+**Verdict: Correctly grouped by domain, not by coupling.** Splitting would scatter related concepts. The low cohesion is characteristic of a spec-driven community (concepts co-defined, independently implemented) rather than a code-driven one. No action needed.
+
+### Q4: Should MCP Server (community 2) be split?
+
+- **25 nodes**, **24 internal edges**, **2 cross-community edges**
+- Cohesion: **0.08**
+- **24 of 25 nodes** come from a single file: `mcp_server.py`
+
+The low cohesion is a measurement artifact: degree-1 docstring nodes (see Q2) dilute the score. The actual function nodes are well-connected through `mcp_server.py`'s `contains` edges.
+
+Cross-community edges (only 2):
+- `mcp_server.py` **imports** `openskills.py` (community 1 — CLI Commands)
+- `mcp_server.py` **calls** `parse_frontmatter()` (community 0 — Skill Spec & Adapters)
+
+**Verdict: Architecturally clean.** The MCP server is a thin wrapper that imports the CLI library and exposes it over MCP. Its only dependency is `openskills.py`, which is the correct single point of coupling. No split needed.
+
+### Architectural Summary
+
+The codebase has a clean three-layer architecture:
+
+```
+SPEC.md (defines concepts)
+    ↓
+openskills.py (implements as CLI commands)
+    ↓
+mcp_server.py (wraps for agent access)
+```
+
+`parse_frontmatter()` is the justified chokepoint between layers. The low cohesion scores and weakly-connected nodes are measurement artifacts from docstrings being extracted as standalone nodes, not architectural problems.
