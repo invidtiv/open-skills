@@ -1,4 +1,4 @@
-# Open Skills Specification v1.0
+# Open Skills Specification v2.0
 
 ## The Problem
 
@@ -49,14 +49,7 @@ An Open Skill is a directory containing:
 
 ```
 my-skill/
-├── SKILL.md              # The procedure (portable markdown + YAML frontmatter)
-├── manifest.yaml         # Dependencies, permissions, compatibility declarations
-├── scripts/              # Executable code the skill calls
-│   └── validate.sh
-├── templates/            # Reusable output/input templates
-│   └── report.md.tmpl
-├── references/           # Supporting documentation the skill loads
-│   └── api-notes.md
+├── skill.md              # The procedure (portable markdown + YAML frontmatter)
 ├── tests/                # Verifiable checks that the skill works
 │   └── test_basic.py
 └── adapters/             # Platform-specific wrappers (auto-generated on export)
@@ -66,88 +59,62 @@ my-skill/
     └── codex.md
 ```
 
-### SKILL.md — The Procedure
+> **v1.0 → v2.0 change**: The `manifest.yaml` file has been removed. All
+> metadata now lives in `skill.md` frontmatter. The directory structure has
+> been simplified — `scripts/`, `templates/`, and `references/` are optional
+> and only created if a skill needs them.
+
+### skill.md — The Procedure
 
 The core file. Written in portable markdown with a YAML frontmatter block that
 any platform can parse. Contains the actual procedure: numbered steps, exact
 commands, pitfalls, and verification — not just "what to do" but **how to do
 it repeatably**.
 
+#### Required Frontmatter Fields
+
 ```yaml
 ---
 name: support-billing-recovery
-version: 1.0.0
 description: >
   Recover a stuck billing charge for a support ticket: identify the charge,
   verify the failure, issue the refund, document the resolution.
-category: operations
-tags: [billing, support, refunds, customer-success]
-author: you@yourdomain.com
-license: MIT
-created: 2026-06-19
-updated: 2026-06-19
-min_agent_capability: tool-use
+triggers:
+  - "support ticket mentions stuck charge, duplicate billing, or refund request"
+  - "billing alert fires for a charge in failed state > 4 hours"
+boundaries:
+  - "Do not refund succeeded charges"
+  - "Do not retry the same declined payment method"
+required_tools:
+  - stripe-cli
+  - curl
+output_format: "resolution.json"
 ---
 ```
 
+| Field | Type | Required | Description |
+|---|---|---|---|
+| `name` | string | yes | Slugified skill name |
+| `description` | string | yes | What this skill does |
+| `triggers` | list | yes | When to activate this skill |
+| `boundaries` | list | yes | What this skill must NOT do |
+| `required_tools` | list | yes | Tools/CLIs the skill depends on |
+| `output_format` | string | yes | Expected output artifact |
+
+> **Optional fields**: `version`, `category`, `tags`, `author`, `license`,
+> `created`, `updated` — these are accepted but not required by validation.
+
+#### Required Body Sections
+
 The body follows this structure:
 
-1. **Trigger** — When this skill should activate (conditions, keywords, contexts)
-2. **Prerequisites** — What must be true before starting (access, tools, data)
-3. **Procedure** — Numbered steps with exact commands or actions
-4. **Pitfalls** — Known failure modes and how to avoid them
-5. **Verification** — How to confirm the skill worked (not "it seems done")
-6. **Recovery** — What to do if it goes wrong
+1. **## Objective** — What this skill accomplishes
+2. **## Procedure** — Numbered steps with exact commands or actions
+3. **## Verification Contract (NON-NEGOTIABLE)** — Checklist items (`- [ ]`)
+   that confirm the skill worked. Must contain at least one checklist item.
 
-### manifest.yaml — The Declaration
-
-```yaml
-# Declares what the skill needs and what it touches
-dependencies:
-  tools:
-    - name: stripe-cli
-      required: true
-      check: "stripe --version"
-    - name: curl
-      required: true
-  data:
-    - description: "Active Stripe API key in environment"
-      env_var: STRIPE_API_KEY
-      required: true
-  skills:
-    - name: customer-lookup
-      version: ">=1.0.0"
-      required: false
-
-permissions:
-  network: true
-  filesystem:
-    - path: /tmp/billing-recovery/
-      access: write
-  api_keys:
-    - STRIPE_API_KEY
-    - SUPPORT_TICKET_API_KEY
-
-compatibility:
-  - platform: hermes
-    min_version: "0.9"
-  - platform: claude-code
-    min_version: "1.0"
-  - platform: cursor
-    min_version: "0.45"
-  - platform: codex
-    min_version: "1.0"
-  - platform: generic
-    notes: "Any agent that can read markdown and execute shell commands"
-
-tests:
-  - name: dry-run-validation
-    command: "python3 tests/test_basic.py --dry-run"
-    expected_exit: 0
-  - name: refund-logic-check
-    command: "python3 tests/test_basic.py --check-logic"
-    expected_exit: 0
-```
+> **Optional sections**: Trigger, Prerequisites, Pitfalls, Recovery — these
+> are recommended for complex skills but not required by validation.
 
 ---
 
