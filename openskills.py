@@ -21,11 +21,13 @@ import json
 import shutil
 import subprocess
 import re
-import warnings
 from pathlib import Path
 
 from core import (
     VERSION,
+    SKELETON_SKILL,
+    slugify,
+    validate_skill_content,
     get_global_dir,
     get_local_dir,
     resolve_skill,
@@ -71,38 +73,16 @@ def _warn_legacy(cmd_name):
 
 # ── Init ────────────────────────────────────────────────────────────────────
 
-SKELETON_SKILL = """---
-name: {name}
-description: Describe what this skill does.
-triggers:
-  - "on UI change"
-boundaries:
-  - "Do not run in production."
-required_tools:
-  - terminal
-output_format: "QA_EVIDENCE.md"
----
-
-## Objective
-Ensure that ...
-
-## Procedure
-1. Step one
-2. Step two
-
-## Verification Contract (NON-NEGOTIABLE)
-Your job is NOT done until you provide:
-- [ ] Console logs showing ...
-- [ ] Screenshots in ...
-"""
-
 def cmd_init(args):
     if not args:
         die("Usage: openskills init <skill-name> [--global|--local]")
     name = args[0]
     is_global = "--global" in args
 
-    safe = re.sub(r'[^a-z0-9-]', '-', name.lower().strip())
+    try:
+        safe = slugify(name)
+    except ValueError:
+        die(f"Invalid skill name '{name}': slugified result is empty")
 
     base_dir = get_global_dir() if is_global else get_local_dir()
     target_dir = base_dir / "skills" / safe
@@ -131,12 +111,6 @@ def cmd_validate(args):
         if p.is_file():
             skill_file = p
             skill_dir = p.parent
-        elif p.is_dir():
-            for fn in ["skill.md", "SKILL.md"]:
-                if (p / fn).exists():
-                    skill_file = p / fn
-                    skill_dir = p
-                    break
 
     if not skill_file or not skill_file.exists():
         die(f"Could not resolve skill target '{target}'")
@@ -144,53 +118,14 @@ def cmd_validate(args):
     print(f"\nOpen Skills Validation — {skill_file.name} ({skill_dir.name}/)\n")
 
     content = skill_file.read_text()
-    fm, body = parse_frontmatter(content)
+    result = validate_skill_content(content)
 
-    errors = []
+    for check in result["checks"]:
+        mark = "✓" if check["passed"] else "✗"
+        detail = f" ({check['detail']})" if check.get("detail") else ""
+        print(f"  [{mark}] {check['label']}{detail}")
 
-    if not fm:
-        errors.append("Missing or invalid YAML frontmatter block")
-        print("  [✗] Frontmatter block exists")
-    else:
-        print("  [✓] Frontmatter block exists")
-
-        for field in ["name", "description", "triggers", "boundaries", "required_tools", "output_format"]:
-            val = fm.get(field)
-            if val is None:
-                errors.append(f"Frontmatter field '{field}' is missing")
-                print(f"  [✗] Frontmatter field '{field}' declared")
-            elif field in ["triggers", "boundaries", "required_tools"]:
-                if not isinstance(val, list):
-                    errors.append(f"Frontmatter field '{field}' must be a list")
-                    print(f"  [✗] Frontmatter field '{field}' format is valid")
-                else:
-                    print(f"  [✓] Frontmatter field '{field}' declared ({len(val)} items)")
-            else:
-                if not isinstance(val, str) or not val.strip():
-                    errors.append(f"Frontmatter field '{field}' must be a non-empty string")
-                    print(f"  [✗] Frontmatter field '{field}' format is valid")
-                else:
-                    print(f"  [✓] Frontmatter field '{field}' declared: '{val}'")
-
-    for section in ["## Objective", "## Procedure", "## Verification Contract (NON-NEGOTIABLE)"]:
-        if section not in body:
-            errors.append(f"Missing required section header '{section}'")
-            print(f"  [✗] Section '{section}' exists")
-        else:
-            print(f"  [✓] Section '{section}' exists")
-
-    if "## Verification Contract (NON-NEGOTIABLE)" in body:
-        parts = body.split("## Verification Contract (NON-NEGOTIABLE)")
-        v_section = parts[1]
-        checklist = re.findall(r'- \[[ xX]\]', v_section)
-        if not checklist:
-            errors.append("Verification Contract must contain at least one checklist item (e.g. - [ ])")
-            print("  [✗] Verification Contract has checklist items")
-        else:
-            print(f"  [✓] Verification Contract has checklist items ({len(checklist)} found)")
-    else:
-        print("  [✗] Verification Contract has checklist items")
-
+    errors = result["errors"]
     print(f"\n  Validation result: {len(errors)} errors found.")
     if not errors:
         ok("This is a valid Open Skill.")
@@ -235,7 +170,7 @@ def cmd_test(args):
         die(f"No tests found in {test_dir}")
 
     ran = 0
-    for tf in sorted(test_dir.glob("*.py")):
+    for tf in sorted(test_dir.rglob("*.py")):
         info(f"Running {tf.name}...")
         result = subprocess.run(
             [sys.executable, str(tf)],
@@ -410,7 +345,7 @@ def get_api_key():
 
 
 def call_llm_completion(api_key, transcript):
-    """Call OpenRouter API with Gemma 4 to extract a skill from a transcript."""
+    """Call OpenRouter API to extract a skill from a transcript."""
     import urllib.request
 
     headers = {
@@ -473,14 +408,17 @@ def call_llm_completion(api_key, transcript):
             res_data = json.loads(response.read().decode("utf-8"))
             return res_data["choices"][0]["message"]["content"]
     except Exception as e:
-        die(f"OpenRouter API call failed: {e}")
+        raise RuntimeError(f"OpenRouter API call failed: {e}")
 
 
 def extract_skill_name_from_md(md_content):
     fm, _ = parse_frontmatter(md_content)
     name = fm.get("name")
     if name:
-        return re.sub(r'[^a-z0-9-]', '-', name.lower().strip())
+        try:
+            return slugify(name)
+        except ValueError:
+            pass
     return "extracted-skill"
 
 
@@ -534,7 +472,10 @@ def cmd_add(args):
     if not name:
         die(f"Skill at {src} has no 'name' field in frontmatter")
 
-    safe = re.sub(r'[^a-z0-9-]', '-', name.lower().strip())
+    try:
+        safe = slugify(name)
+    except ValueError:
+        die(f"Invalid skill name '{name}': slugified result is empty")
     base_dir = get_local_dir() if is_local else get_global_dir()
     target_dir = base_dir / "skills" / safe
 

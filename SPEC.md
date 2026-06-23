@@ -52,17 +52,20 @@ my-skill/
 ├── skill.md              # The procedure (portable markdown + YAML frontmatter)
 ├── tests/                # Verifiable checks that the skill works
 │   └── test_basic.py
-└── adapters/             # Platform-specific wrappers (auto-generated on export)
-    ├── hermes.md
-    ├── claude-code.md
-    ├── cursor.md
-    └── codex.md
+├── adapters/             # Platform-specific wrappers (optional, auto-generated on export)
+│   ├── hermes.md
+│   ├── claude-code.md
+│   ├── cursor.md
+│   └── codex.md
+├── scripts/              # Optional helper scripts
+├── templates/            # Optional file templates
+└── references/           # Optional reference materials
 ```
 
 > **v1.0 → v2.0 change**: The `manifest.yaml` file has been removed. All
 > metadata now lives in `skill.md` frontmatter. The directory structure has
-> been simplified — `scripts/`, `templates/`, and `references/` are optional
-> and only created if a skill needs them.
+> been simplified — `scripts/`, `templates/`, `references/`, and `adapters/`
+> are optional and only created if a skill needs them.
 
 ### skill.md — The Procedure
 
@@ -130,10 +133,10 @@ eight checks:
 | 2 | **Movable** | Can you install it on a different platform in under 5 minutes? | ☐ |
 | 3 | **Inspectable** | Can you read the full procedure without running anything? | ☐ |
 | 4 | **Testable** | Does it have a verification step that confirms it worked? | ☐ |
-| 5 | **Versioned** | Does it have a version number and a changelog? | ☐ |
-| 6 | **Dependent-declared** | Are all tool/data/API dependencies listed? | ☐ |
-| 7 | **Permission-bounded** | Are its permissions (network, files, keys) explicit? | ☐ |
-| 8 | **Platform-agnostic** | Does the core procedure work without platform-specific syntax? | ☐ |
+| 5 | **Dependent-declared** | Are all tool dependencies listed in `required_tools`? | ☐ |
+| 6 | **Permission-bounded** | Are its boundaries explicitly declared in `boundaries`? | ☐ |
+| 7 | **Platform-agnostic** | Does the core procedure work without platform-specific syntax? | ☐ |
+| 8 | **Validated** | Does it pass `openskills validate` with zero errors? | ☐ |
 
 If any check fails, you don't have a skill — you have a habit that will die
 the next time you switch tools.
@@ -182,7 +185,7 @@ not the app, not the chat, not the subscription.
 
 ## Platform Adapters
 
-The core skill (SKILL.md + manifest.yaml + supporting files) is
+The core skill (SKILL.md + supporting files) is
 platform-agnostic. Platform adapters translate the portable format into
 whatever a specific agent expects:
 

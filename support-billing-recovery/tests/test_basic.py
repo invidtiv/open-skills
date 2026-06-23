@@ -17,39 +17,37 @@ def test_skill_md_exists():
     assert (SKILL_DIR / "SKILL.md").exists(), "SKILL.md missing"
     print("  ✓ SKILL.md exists")
 
-def test_manifest_exists():
-    assert (SKILL_DIR / "manifest.yaml").exists(), "manifest.yaml missing"
-    print("  ✓ manifest.yaml exists")
-
 def test_frontmatter_parses():
     md = (SKILL_DIR / "SKILL.md").read_text()
     assert md.startswith("---"), "SKILL.md must start with YAML frontmatter"
     parts = md.split("---", 2)
     fm = yaml.safe_load(parts[1])
     assert "name" in fm, "frontmatter missing 'name'"
-    assert "version" in fm, "frontmatter missing 'version'"
     assert "description" in fm, "frontmatter missing 'description'"
-    print(f"  ✓ frontmatter parses: {fm['name']} v{fm['version']}")
+    assert "triggers" in fm, "frontmatter missing 'triggers'"
+    assert "boundaries" in fm, "frontmatter missing 'boundaries'"
+    assert "required_tools" in fm, "frontmatter missing 'required_tools'"
+    assert "output_format" in fm, "frontmatter missing 'output_format'"
+    print(f"  ✓ frontmatter parses: {fm['name']}")
 
-def test_manifest_dependencies_declared():
-    with open(SKILL_DIR / "manifest.yaml") as f:
-        m = yaml.safe_load(f)
-    deps = m.get("dependencies", {})
-    assert "tools" in deps, "manifest missing tools dependencies"
-    assert len(deps["tools"]) > 0, "manifest declares no tools"
-    # Stripe CLI must be declared
-    tool_names = [t["name"] for t in deps["tools"]]
-    assert "stripe-cli" in tool_names, "manifest must declare stripe-cli"
-    print(f"  ✓ dependencies declared: {', '.join(tool_names)}")
+def test_required_tools_declared():
+    md = (SKILL_DIR / "SKILL.md").read_text()
+    parts = md.split("---", 2)
+    fm = yaml.safe_load(parts[1])
+    tools = fm.get("required_tools", [])
+    assert isinstance(tools, list), "required_tools must be a list"
+    assert len(tools) > 0, "must declare at least one required tool"
+    assert "stripe-cli" in tools, "required_tools must include stripe-cli"
+    print(f"  ✓ required_tools declared: {', '.join(tools)}")
 
-def test_permissions_bounded():
-    with open(SKILL_DIR / "manifest.yaml") as f:
-        m = yaml.safe_load(f)
-    perms = m.get("permissions", {})
-    assert "network" in perms, "manifest missing network permission"
-    assert "api_keys" in perms, "manifest missing api_keys permission"
-    assert "STRIPE_API_KEY" in perms["api_keys"], "STRIPE_API_KEY must be in permissions"
-    print("  ✓ permissions bounded")
+def test_boundaries_declared():
+    md = (SKILL_DIR / "SKILL.md").read_text()
+    parts = md.split("---", 2)
+    fm = yaml.safe_load(parts[1])
+    boundaries = fm.get("boundaries", [])
+    assert isinstance(boundaries, list), "boundaries must be a list"
+    assert len(boundaries) > 0, "must declare at least one boundary"
+    print(f"  ✓ boundaries declared: {len(boundaries)} items")
 
 def test_procedure_has_six_steps():
     md = (SKILL_DIR / "SKILL.md").read_text()
@@ -63,10 +61,10 @@ def test_pitfalls_section_exists():
     assert "## Pitfalls" in md, "SKILL.md missing Pitfalls section"
     print("  ✓ pitfalls section exists")
 
-def test_verification_section_exists():
+def test_verification_contract_section_exists():
     md = (SKILL_DIR / "SKILL.md").read_text()
-    assert "## Verification" in md, "SKILL.md missing Verification section"
-    print("  ✓ verification section exists")
+    assert "## Verification Contract (NON-NEGOTIABLE)" in md, "SKILL.md missing Verification Contract section"
+    print("  ✓ verification contract section exists")
 
 def test_recovery_section_exists():
     md = (SKILL_DIR / "SKILL.md").read_text()
@@ -80,15 +78,6 @@ def test_platform_agnostic():
     for marker in bad_markers:
         assert marker not in md, f"SKILL.md contains platform-specific marker: {marker}"
     print("  ✓ platform-agnostic (no vendor markers in core)")
-
-def test_compatibility_declared():
-    with open(SKILL_DIR / "manifest.yaml") as f:
-        m = yaml.safe_load(f)
-    compat = m.get("compatibility", [])
-    assert len(compat) >= 4, f"expected at least 4 compatible platforms, found {len(compat)}"
-    platforms = [c["platform"] for c in compat]
-    assert "generic" in platforms, "must declare generic compatibility"
-    print(f"  ✓ compatibility: {', '.join(platforms)}")
 
 def test_decision_logic():
     """Verify the decision logic in Step 3 is well-defined."""
@@ -107,16 +96,14 @@ def main():
         # Run all structural tests
         tests = [
             test_skill_md_exists,
-            test_manifest_exists,
             test_frontmatter_parses,
-            test_manifest_dependencies_declared,
-            test_permissions_bounded,
+            test_required_tools_declared,
+            test_boundaries_declared,
             test_procedure_has_six_steps,
             test_pitfalls_section_exists,
-            test_verification_section_exists,
+            test_verification_contract_section_exists,
             test_recovery_section_exists,
             test_platform_agnostic,
-            test_compatibility_declared,
             test_decision_logic,
         ]
         failed = 0
@@ -136,17 +123,13 @@ def main():
         return
 
     if "--check-manifest" in args:
-        test_manifest_exists()
-        test_manifest_dependencies_declared()
-        test_permissions_bounded()
-        test_compatibility_declared()
-        print("\nManifest valid.")
-        return
+        print("manifest.yaml has been removed in v2.0. Use 'openskills validate' instead.")
+        sys.exit(0)
 
     if "--verify" in args:
         # In a real environment, this would check the resolution.json
         # For testing, just verify the structure supports verification
-        test_verification_section_exists()
+        test_verification_contract_section_exists()
         print("\nVerification path exists.")
         return
 

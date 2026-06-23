@@ -1,7 +1,7 @@
-import { useState, useEffect, useCallback } from 'react'
+import { useState, useEffect } from 'react'
 import { useParams, useNavigate, Link } from 'react-router-dom'
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query'
-import { getSkill, saveSkill, deleteSkill, validateSkill, listSkillFiles, readSkillFile } from '../api'
+import { getSkill, saveSkillStructured, deleteSkill, validateSkill, listSkillFiles, readSkillFile } from '../api'
 import { useToast } from '../components/Toast'
 import FrontmatterForm from '../components/FrontmatterForm'
 import ValidationPanel from '../components/ValidationPanel'
@@ -34,6 +34,7 @@ export default function SkillDetailPage() {
   const [selectedFile, setSelectedFile] = useState<string | null>(null)
   const [fileContent, setFileContent] = useState<string | null>(null)
 
+  const skillName = skill?.frontmatter?.name as string | undefined
   useEffect(() => {
     if (skill) {
       setFrontmatter(skill.frontmatter)
@@ -41,27 +42,11 @@ export default function SkillDetailPage() {
       setDirty(false)
       setValidation(null)
     }
-  }, [skill])
-
-  const reconstruct = useCallback(() => {
-    const lines = ['---']
-    const fm = frontmatter
-    if (fm.name) lines.push(`name: ${fm.name}`)
-    if (fm.description) lines.push(`description: ${fm.description}`)
-    for (const key of ['triggers', 'boundaries', 'required_tools'] as const) {
-      const arr = fm[key]
-      if (Array.isArray(arr) && arr.length > 0) {
-        lines.push(`${key}:`)
-        arr.forEach((v: string) => lines.push(`  - "${v}"`))
-      }
-    }
-    if (fm.output_format) lines.push(`output_format: "${fm.output_format}"`)
-    lines.push('---', '', body)
-    return lines.join('\n') + '\n'
-  }, [frontmatter, body])
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [skillName, name])
 
   const saveMutation = useMutation({
-    mutationFn: () => saveSkill(name!, reconstruct()),
+    mutationFn: () => saveSkillStructured(name!, frontmatter, body),
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['skill', name] })
       queryClient.invalidateQueries({ queryKey: ['skills'] })

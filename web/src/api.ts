@@ -3,9 +3,13 @@ import type { Skill, SkillDetail, SkillFile, ValidationResult, Runbook, RunbookS
 const BASE = '/api'
 
 async function request<T>(path: string, opts?: RequestInit): Promise<T> {
+  const headers: Record<string, string> = {}
+  if (opts?.body) {
+    headers['Content-Type'] = 'application/json'
+  }
   const res = await fetch(`${BASE}${path}`, {
-    headers: { 'Content-Type': 'application/json' },
     ...opts,
+    headers: { ...headers, ...(opts?.headers as Record<string, string> | undefined) },
   })
   if (!res.ok) {
     const body = await res.json().catch(() => ({ detail: res.statusText }))
@@ -30,6 +34,10 @@ export async function saveSkill(name: string, content: string): Promise<{ saved:
   return request(`/skills/${encodeURIComponent(name)}`, { method: 'PUT', body: JSON.stringify({ content }) })
 }
 
+export async function saveSkillStructured(name: string, frontmatter: Record<string, unknown>, body: string): Promise<{ saved: boolean; name: string }> {
+  return request(`/skills/${encodeURIComponent(name)}/structured`, { method: 'PUT', body: JSON.stringify({ frontmatter, body }) })
+}
+
 export async function deleteSkill(name: string): Promise<{ deleted: boolean }> {
   return request(`/skills/${encodeURIComponent(name)}`, { method: 'DELETE' })
 }
@@ -51,7 +59,8 @@ export async function listSkillFiles(name: string): Promise<{ files: SkillFile[]
 }
 
 export async function readSkillFile(name: string, filepath: string): Promise<{ content: string }> {
-  return request(`/skills/${encodeURIComponent(name)}/files/${filepath}`)
+  const encodedPath = filepath.split('/').map(encodeURIComponent).join('/')
+  return request(`/skills/${encodeURIComponent(name)}/files/${encodedPath}`)
 }
 
 export async function listRunbooks(): Promise<{ runbooks: Runbook[] }> {

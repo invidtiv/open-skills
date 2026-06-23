@@ -1,24 +1,36 @@
 ---
 name: support-billing-recovery
-version: 1.0.0
 description: >
   Recover a stuck billing charge for a support ticket: identify the charge,
   verify the failure mode, issue the refund or retry, document the resolution,
   and close the loop with the customer. Designed to work identically whether
   the agent runs in Hermes, Claude Code, Cursor, Codex, or a generic shell.
-category: operations
-tags: [billing, support, refunds, stripe, customer-success]
-author: you@yourdomain.com
-license: MIT
-created: 2026-06-19
-updated: 2026-06-19
-min_agent_capability: tool-use
+triggers:
+  - "support ticket mentions stuck charge"
+  - "duplicate billing"
+  - "failed payment"
+  - "refund request"
+boundaries:
+  - "Do not activate for general billing questions, plan changes, or subscription upgrades."
+  - "Do not refund a succeeded charge — that is a service delivery issue."
+  - "Do not retry the same declined payment method."
+required_tools:
+  - terminal
+  - stripe-cli
+  - curl
+output_format: "resolution.json"
 ---
 
 # Support Billing Recovery
 
 This is the procedure, not the prompt. It survives a model change, a tool
 switch, and a new hire's first day. It is yours.
+
+## Objective
+
+Recover a stuck billing charge for a support ticket end-to-end: identify the
+charge, verify the failure mode, issue the refund or retry, document the
+resolution, and close the loop with the customer.
 
 ## Trigger
 
@@ -229,7 +241,7 @@ echo "Resolution details are in /tmp/billing-recovery/resolution.json"
   resolution record must be persisted. Without it, the recovery is
   unverifiable.
 
-## Verification
+## Verification Contract (NON-NEGOTIABLE)
 
 Confirm the skill worked by checking ALL of the following:
 
@@ -245,6 +257,13 @@ Run the verification script:
 ```bash
 python3 tests/test_basic.py --verify
 ```
+
+- [ ] `/tmp/billing-recovery/resolution.json` exists and is valid JSON
+- [ ] The `action_taken` field is either `"refund"` or `"retry"` (not `"none"`)
+- [ ] If `action_taken` is `"refund"`: `refund_status` is `"succeeded"` or `"pending"`
+- [ ] If `action_taken` is `"retry"`: `retry_status` is `"succeeded"`
+- [ ] The support ticket is updated (or a manual update is documented)
+- [ ] The customer has been notified
 
 If any verification fails, the recovery is not complete. Do not mark the
 ticket as resolved. Escalate to billing engineering.

@@ -2,7 +2,7 @@
 
 > *The way you work should be yours, not rented back to you.*
 
-Open Skills is a portable skill format, CLI tool, and Model Context Protocol (MCP) Server for AI agent workflows. Your skills — the procedures you've refined for researching, writing, coding, testing, reviewing, and recovering — are leaving your hands. AI turns them into prompts, runbooks, and agent workflows. Open Skills makes sure they stay yours: visible, movable, inspectable, testable, and available wherever you work.
+Open Skills is a portable skill format, CLI tool, MCP Server, and web UI for AI agent workflows. Your skills — the procedures you've refined for researching, writing, coding, testing, reviewing, and recovering — are leaving your hands. AI turns them into prompts, runbooks, and agent workflows. Open Skills makes sure they stay yours: visible, movable, inspectable, testable, and available wherever you work.
 
 ## Scoping & Directory Hierarchy
 
@@ -85,6 +85,10 @@ python3 openskills.py validate my-workflow
 # Test — run the skill's unit tests
 python3 openskills.py test my-workflow
 
+# Add — import an external skill directory into your scope
+python3 openskills.py add /path/to/skill-dir --local
+python3 openskills.py add /path/to/skill-dir --global
+
 # Start the local Open Skills MCP Server
 python3 openskills.py mcp start
 
@@ -145,7 +149,75 @@ To prevent brilliant workflows from dying in obscure chat histories, use the ext
 ```bash
 python3 openskills.py extract --last-session
 ```
-It retrieves the latest chat session logs from your local tools (e.g. Superpowers SQLite DB or Claude history logs), parses them, resolves OpenAI API credentials, calls a local/completions model, and dumps a draft skill into `.open-skills/skills/pending-review/` for you to inspect, modify, and commit.
+It retrieves the latest chat session logs from your local tools (e.g. Superpowers SQLite DB or Claude history logs), parses them, resolves OpenRouter API credentials from the environment or `.env` file, calls a completions model (DeepSeek V4 Flash via OpenRouter by default), and dumps a draft skill into `.open-skills/skills/pending-review/` for you to inspect, modify, and commit.
+
+### Configuration
+
+The extract command requires an OpenRouter API key. Set it via environment variable or `.env` file:
+
+```bash
+# In .env or your shell environment
+OPENROUTER_API_KEY=sk-or-v1-your-key-here
+```
+
+Optional configuration:
+
+| Variable | Default | Description |
+|---|---|---|
+| `OPENROUTER_API_KEY` | — | Required for extract. OpenRouter API key. |
+| `EXTRACT_MODEL` | `deepseek/deepseek-v4-flash` | Model to use for extraction. |
+| `EXTRACT_API_BASE` | `https://openrouter.ai/api/v1/chat/completions` | OpenRouter completions endpoint. |
+
+---
+
+## Web UI
+
+Open Skills includes a FastAPI backend (`server.py`) and a React/Vite frontend (`web/`) for managing skills and runbooks through a browser interface.
+
+### Running the Web UI
+
+```bash
+# Build the frontend
+cd web && npm install && npm run build && cd ..
+
+# Start the backend server
+python3 server.py
+```
+
+The server runs on `http://localhost:8000` and serves the built SPA at the root path, with API endpoints under `/api`.
+
+### Authentication
+
+By default, the server runs without authentication (suitable for localhost development). To enable shared-secret authentication, set the `OPENSKILLS_API_TOKEN` environment variable:
+
+```bash
+export OPENSKILLS_API_TOKEN=your-secret-token
+python3 server.py
+```
+
+When enabled, all API requests must include an `Authorization: Bearer <token>` header.
+
+### API Endpoints
+
+| Method | Path | Description |
+|---|---|---|
+| GET | `/api/skills` | List all skills (local + global) |
+| GET | `/api/skills/{name}` | Get skill detail (frontmatter, body, files) |
+| POST | `/api/skills` | Create a new skill |
+| PUT | `/api/skills/{name}` | Save skill (raw markdown) |
+| PUT | `/api/skills/{name}/structured` | Save skill (structured frontmatter + body) |
+| DELETE | `/api/skills/{name}` | Delete a skill |
+| POST | `/api/skills/{name}/validate` | Validate a skill |
+| POST | `/api/skills/add` | Import an external skill directory |
+| POST | `/api/skills/extract` | Extract a skill from last chat session |
+| GET | `/api/skills/{name}/files` | List files in a skill directory |
+| GET | `/api/skills/{name}/files/{path}` | Read a file from a skill directory |
+| GET | `/api/runbooks` | List all runbooks |
+| GET | `/api/runbooks/state` | Get active runbook state |
+| POST | `/api/runbooks/{name}/start` | Start a runbook |
+| POST | `/api/runbooks/advance` | Advance to next phase |
+| POST | `/api/runbooks/prev` | Revert to previous phase |
+| POST | `/api/runbooks/reset` | Reset runbook state |
 
 ---
 

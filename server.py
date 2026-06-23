@@ -4,12 +4,12 @@ server — FastAPI backend for Open Skills web frontend.
 Wraps core.py as a REST API and serves the built SPA.
 """
 
+import os
 import re
 import shutil
 from pathlib import Path
-from typing import Optional
 
-from fastapi import FastAPI, HTTPException
+from fastapi import FastAPI, HTTPException, Request, Response
 from fastapi.staticfiles import StaticFiles
 from fastapi.responses import FileResponse
 from pydantic import BaseModel
@@ -17,6 +17,22 @@ from pydantic import BaseModel
 import core
 
 app = FastAPI(title="Open Skills", version=core.VERSION)
+
+# ── Authentication ─────────────────────────────────────────────────────────
+
+_API_TOKEN = os.environ.get("OPENSKILLS_API_TOKEN")
+
+
+@app.middleware("http")
+async def auth_middleware(request: Request, call_next):
+    """Shared-secret auth. Skips for localhost if no token is configured."""
+    if _API_TOKEN:
+        token = request.headers.get("Authorization", "")
+        if token.startswith("Bearer "):
+            token = token[7:]
+        if token != _API_TOKEN:
+            return Response(status_code=401, content='{"detail":"Unauthorized"}', media_type="application/json")
+    return await call_next(request)
 
 # ── Request/Response models ────────────────────────────────────────────────
 
@@ -26,6 +42,10 @@ class CreateSkillRequest(BaseModel):
 
 class SaveSkillRequest(BaseModel):
     content: str
+
+class SaveStructuredSkillRequest(BaseModel):
+    frontmatter: dict
+    body: str
 
 class AddSkillRequest(BaseModel):
     path: str
@@ -43,91 +63,13 @@ class ValidationResult(BaseModel):
 
 # ── Validation logic (extracted from CLI) ──────────────────────────────────
 
-SKELETON_SKILL = """\
----
-name: {name}
-description: Describe what this skill does.
-triggers:
-  - "on UI change"
-boundaries:
-  - "Do not run in production."
-required_tools:
-  - terminal
-output_format: "QA_EVIDENCE.md"
----
-
-## Objective
-Ensure that ...
-
-## Procedure
-1. Step one
-2. Step two
-
-## Verification Contract (NON-NEGOTIABLE)
-Your job is NOT done until you provide:
-- [ ] Console logs showing ...
-- [ ] Screenshots in ...
-"""
-
-
 def validate_skill_content(content: str) -> ValidationResult:
-    fm, body = core.parse_frontmatter(content)
-    checks = []
-    errors = []
-
-    if not fm:
-        errors.append("Missing or invalid YAML frontmatter block")
-        checks.append(ValidationCheck(label="Frontmatter block exists", passed=False))
-    else:
-        checks.append(ValidationCheck(label="Frontmatter block exists", passed=True))
-
-        for field in ["name", "description", "triggers", "boundaries", "required_tools", "output_format"]:
-            val = fm.get(field)
-            if val is None:
-                errors.append(f"Frontmatter field '{field}' is missing")
-                checks.append(ValidationCheck(label=f"Field '{field}' declared", passed=False))
-            elif field in ("triggers", "boundaries", "required_tools"):
-                if not isinstance(val, list):
-                    errors.append(f"Frontmatter field '{field}' must be a list")
-                    checks.append(ValidationCheck(label=f"Field '{field}' format valid", passed=False))
-                else:
-                    checks.append(ValidationCheck(
-                        label=f"Field '{field}' declared",
-                        passed=True,
-                        detail=f"{len(val)} items",
-                    ))
-            else:
-                if not isinstance(val, str) or not val.strip():
-                    errors.append(f"Frontmatter field '{field}' must be a non-empty string")
-                    checks.append(ValidationCheck(label=f"Field '{field}' format valid", passed=False))
-                else:
-                    checks.append(ValidationCheck(
-                        label=f"Field '{field}' declared",
-                        passed=True,
-                        detail=val,
-                    ))
-
-    for section in ["## Objective", "## Procedure", "## Verification Contract (NON-NEGOTIABLE)"]:
-        if section in body:
-            checks.append(ValidationCheck(label=f"Section '{section}' exists", passed=True))
-        else:
-            errors.append(f"Missing required section '{section}'")
-            checks.append(ValidationCheck(label=f"Section '{section}' exists", passed=False))
-
-    if "## Verification Contract (NON-NEGOTIABLE)" in body:
-        v_section = body.split("## Verification Contract (NON-NEGOTIABLE)")[1]
-        checklist = re.findall(r'- \[[ xX]\]', v_section)
-        if checklist:
-            checks.append(ValidationCheck(
-                label="Verification Contract has checklist items",
-                passed=True,
-                detail=f"{len(checklist)} found",
-            ))
-        else:
-            errors.append("Verification Contract must contain at least one checklist item")
-            checks.append(ValidationCheck(label="Verification Contract has checklist items", passed=False))
-
-    return ValidationResult(valid=len(errors) == 0, checks=checks, errors=errors)
+    result = core.validate_skill_content(content)
+    return ValidationResult(
+        valid=result["valid"],
+        checks=[ValidationCheck(**c) for c in result["checks"]],
+        errors=result["errors"],
+    )
 
 
 def _resolve_or_404(name: str) -> tuple[Path, Path]:
@@ -185,7 +127,10 @@ def get_skill(name: str):
 
 @app.post("/api/skills")
 def create_skill(req: CreateSkillRequest):
-    safe = re.sub(r'[^a-z0-9-]', '-', req.name.lower().strip())
+    try:
+        safe = core.slugify(req.name)
+    except ValueError:
+        raise HTTPException(400, f"Invalid skill name '{req.name}': slugified result is empty")
     base_dir = core.get_local_dir() if req.scope == "local" else core.get_global_dir()
     target_dir = base_dir / "skills" / safe
 
@@ -194,7 +139,7 @@ def create_skill(req: CreateSkillRequest):
 
     target_dir.mkdir(parents=True)
     skill_file = target_dir / "skill.md"
-    skill_file.write_text(SKELETON_SKILL.format(name=safe))
+    skill_file.write_text(core.SKELETON_SKILL.format(name=safe))
     (target_dir / "tests").mkdir(exist_ok=True)
     (target_dir / "tests" / ".gitkeep").write_text("")
 
@@ -207,6 +152,17 @@ def save_skill(name: str, req: SaveSkillRequest):
     skill_file.write_text(req.content)
     fm, body = core.parse_frontmatter(req.content)
     return {"saved": True, "name": fm.get("name", name)}
+
+
+@app.put("/api/skills/{name}/structured")
+def save_skill_structured(name: str, req: SaveStructuredSkillRequest):
+    """Save a skill from structured frontmatter + body, serializing YAML server-side."""
+    _, skill_file = _resolve_or_404(name)
+    import yaml as _yaml
+    fm_yaml = _yaml.dump(req.frontmatter, default_flow_style=False, sort_keys=False, allow_unicode=True)
+    content = f"---\n{fm_yaml}---\n\n{req.body}\n"
+    skill_file.write_text(content)
+    return {"saved": True, "name": req.frontmatter.get("name", name)}
 
 
 @app.delete("/api/skills/{name}")
@@ -229,6 +185,10 @@ def add_skill(req: AddSkillRequest):
     if not src.is_dir():
         raise HTTPException(400, f"Path '{req.path}' is not a directory")
 
+    home = Path.home().resolve()
+    if not src.is_relative_to(home):
+        raise HTTPException(403, "Import path must be inside the user's home directory")
+
     skill_file = core.find_skill_file(src)
     if not skill_file:
         raise HTTPException(400, f"No skill.md found in '{req.path}'")
@@ -238,7 +198,10 @@ def add_skill(req: AddSkillRequest):
     if not skill_name:
         raise HTTPException(400, "Skill has no 'name' field in frontmatter")
 
-    safe = re.sub(r'[^a-z0-9-]', '-', skill_name.lower().strip())
+    try:
+        safe = core.slugify(skill_name)
+    except ValueError:
+        raise HTTPException(400, f"Invalid skill name '{skill_name}': slugified result is empty")
     base_dir = core.get_local_dir() if req.scope == "local" else core.get_global_dir()
     target_dir = base_dir / "skills" / safe
 
@@ -262,7 +225,10 @@ def extract_skill():
     if not api_key:
         raise HTTPException(400, "No API key found. Set OPENROUTER_API_KEY.")
 
-    skill_content = call_llm_completion(api_key, transcript)
+    try:
+        skill_content = call_llm_completion(api_key, transcript)
+    except RuntimeError as e:
+        raise HTTPException(502, str(e))
     skill_content = re.sub(
         r'\n*CRITICAL RULES:.*', '', skill_content, flags=re.DOTALL,
     ).rstrip() + "\n"
@@ -374,7 +340,9 @@ def _scope_for_dir(skill_dir: Path) -> str:
 
 static_dir = Path(__file__).parent / "static"
 if static_dir.is_dir():
-    app.mount("/assets", StaticFiles(directory=static_dir / "assets"), name="assets")
+    assets_dir = static_dir / "assets"
+    if assets_dir.is_dir():
+        app.mount("/assets", StaticFiles(directory=assets_dir), name="assets")
 
     @app.get("/{full_path:path}")
     def spa_fallback(full_path: str):

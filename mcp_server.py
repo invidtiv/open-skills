@@ -21,42 +21,54 @@ mcp = FastMCP("Open Skills")
 @mcp.resource("open-skills://skills/local/{name}")
 def get_local_skill_resource(name: str) -> str:
     """Read a local skill's markdown content."""
-    local_dir = core.get_local_dir()
-    skill_dir = core._safe_child(local_dir / "skills", name)
-    fp = core.find_skill_file(skill_dir)
-    if fp:
-        return fp.read_text()
+    try:
+        local_dir = core.get_local_dir()
+        skill_dir = core._safe_child(local_dir / "skills", name)
+        fp = core.find_skill_file(skill_dir)
+        if fp:
+            return fp.read_text()
+    except ValueError:
+        pass
     raise ValueError(f"Local skill '{name}' not found")
 
 
 @mcp.resource("open-skills://skills/global/{name}")
 def get_global_skill_resource(name: str) -> str:
     """Read a global skill's markdown content."""
-    global_dir = core.get_global_dir()
-    skill_dir = core._safe_child(global_dir / "skills", name)
-    fp = core.find_skill_file(skill_dir)
-    if fp:
-        return fp.read_text()
+    try:
+        global_dir = core.get_global_dir()
+        skill_dir = core._safe_child(global_dir / "skills", name)
+        fp = core.find_skill_file(skill_dir)
+        if fp:
+            return fp.read_text()
+    except ValueError:
+        pass
     raise ValueError(f"Global skill '{name}' not found")
 
 
 @mcp.resource("open-skills://runbooks/local/{name}")
 def get_local_runbook_resource(name: str) -> str:
     """Read a local runbook's content."""
-    local_dir = core.get_local_dir()
-    fp = core._safe_child(local_dir / "runbooks", f"{name}.md")
-    if fp.exists():
-        return fp.read_text()
+    try:
+        local_dir = core.get_local_dir()
+        fp = core._safe_child(local_dir / "runbooks", f"{name}.md")
+        if fp.exists():
+            return fp.read_text()
+    except ValueError:
+        pass
     raise ValueError(f"Local runbook '{name}' not found")
 
 
 @mcp.resource("open-skills://runbooks/global/{name}")
 def get_global_runbook_resource(name: str) -> str:
     """Read a global runbook's content."""
-    global_dir = core.get_global_dir()
-    fp = core._safe_child(global_dir / "runbooks", f"{name}.md")
-    if fp.exists():
-        return fp.read_text()
+    try:
+        global_dir = core.get_global_dir()
+        fp = core._safe_child(global_dir / "runbooks", f"{name}.md")
+        if fp.exists():
+            return fp.read_text()
+    except ValueError:
+        pass
     raise ValueError(f"Global runbook '{name}' not found")
 
 

@@ -31,6 +31,104 @@ SPEC_VERSION = "2.0.0"
 
 logger = logging.getLogger("openskills")
 
+SKELETON_SKILL = """---
+name: {name}
+description: Describe what this skill does.
+triggers:
+  - "on UI change"
+boundaries:
+  - "Do not run in production."
+required_tools:
+  - terminal
+output_format: "QA_EVIDENCE.md"
+---
+
+## Objective
+Ensure that ...
+
+## Procedure
+1. Step one
+2. Step two
+
+## Verification Contract (NON-NEGOTIABLE)
+Your job is NOT done until you provide:
+- [ ] Console logs showing ...
+- [ ] Screenshots in ...
+"""
+
+REQUIRED_FM_FIELDS = ["name", "description", "triggers", "boundaries", "required_tools", "output_format"]
+REQUIRED_SECTIONS = ["## Objective", "## Procedure", "## Verification Contract (NON-NEGOTIABLE)"]
+
+
+def slugify(name: str) -> str:
+    """Slugify a skill name. Raises ValueError if result is empty."""
+    safe = re.sub(r'[^a-z0-9-]', '-', name.lower().strip())
+    safe = re.sub(r'-+', '-', safe).strip('-')
+    if not safe:
+        raise ValueError(f"Slugified name from '{name}' is empty")
+    return safe
+
+
+def validate_skill_content(content: str) -> dict:
+    """Validate skill markdown content. Returns dict with 'errors' and 'checks'.
+
+    Single source of truth for validation — used by both CLI and server.
+    """
+    fm, body = parse_frontmatter(content)
+    checks = []
+    errors = []
+
+    if not fm:
+        errors.append("Missing or invalid YAML frontmatter block")
+        checks.append({"label": "Frontmatter block exists", "passed": False})
+    else:
+        checks.append({"label": "Frontmatter block exists", "passed": True})
+
+        for field in REQUIRED_FM_FIELDS:
+            val = fm.get(field)
+            if val is None:
+                errors.append(f"Frontmatter field '{field}' is missing")
+                checks.append({"label": f"Field '{field}' declared", "passed": False})
+            elif field in ("triggers", "boundaries", "required_tools"):
+                if not isinstance(val, list):
+                    errors.append(f"Frontmatter field '{field}' must be a list")
+                    checks.append({"label": f"Field '{field}' format valid", "passed": False})
+                else:
+                    checks.append({
+                        "label": f"Field '{field}' declared",
+                        "passed": True,
+                        "detail": f"{len(val)} items",
+                    })
+            else:
+                if not isinstance(val, str) or not val.strip():
+                    errors.append(f"Frontmatter field '{field}' must be a non-empty string")
+                    checks.append({"label": f"Field '{field}' format valid", "passed": False})
+                else:
+                    checks.append({
+                        "label": f"Field '{field}' declared", "passed": True, "detail": val})
+
+    for section in REQUIRED_SECTIONS:
+        if section in body:
+            checks.append({"label": f"Section '{section}' exists", "passed": True})
+        else:
+            errors.append(f"Missing required section '{section}'")
+            checks.append({"label": f"Section '{section}' exists", "passed": False})
+
+    if "## Verification Contract (NON-NEGOTIABLE)" in body:
+        v_section = body.split("## Verification Contract (NON-NEGOTIABLE)")[1]
+        checklist = re.findall(r'- \[[ xX]\]', v_section)
+        if checklist:
+            checks.append({
+                "label": "Verification Contract has checklist items",
+                "passed": True,
+                "detail": f"{len(checklist)} found",
+            })
+        else:
+            errors.append("Verification Contract must contain at least one checklist item")
+            checks.append({"label": "Verification Contract has checklist items", "passed": False})
+
+    return {"valid": len(errors) == 0, "checks": checks, "errors": errors}
+
 STOP_WORDS = frozenset({
     "a", "an", "the", "on", "in", "at", "to", "for", "of", "is", "it",
     "and", "or", "do", "if", "by", "be", "as", "no", "so", "up", "not",
@@ -228,6 +326,8 @@ def parse_runbook(filepath: Path) -> list[dict[str, str]]:
             continue
 
         if len(parts) >= 4:
+            if len(parts) > 4:
+                logger.warning("Runbook row has %d columns, only 4 are used: %s", len(parts), line)
             phases.append({
                 "phase": parts[0],
                 "skill": parts[1],
@@ -281,7 +381,7 @@ def start_runbook(name: str) -> dict:
         "runbook": rb_file.stem,
         "current_phase": phases[0]["phase"],
         "phases": phases,
-        "updated_at": datetime.datetime.now().isoformat(),
+        "updated_at": datetime.datetime.now(datetime.timezone.utc).isoformat(),
     }
     _write_state_atomic(get_runbook_state_file(), state)
     return {
@@ -317,7 +417,7 @@ def advance_runbook() -> dict:
         state["current_phase"] = None
         msg = f"Phase {curr_phase} completed. Runbook '{state['runbook']}' is now fully completed!"
 
-    state["updated_at"] = datetime.datetime.now().isoformat()
+    state["updated_at"] = datetime.datetime.now(datetime.timezone.utc).isoformat()
     _write_state_atomic(sf, state)
     return {"status": "success", "message": msg, "state": state}
 
@@ -349,7 +449,7 @@ def prev_runbook() -> dict:
     if idx < len(phases):
         phases[idx]["status"] = "pending"
 
-    state["updated_at"] = datetime.datetime.now().isoformat()
+    state["updated_at"] = datetime.datetime.now(datetime.timezone.utc).isoformat()
     _write_state_atomic(sf, state)
     return {
         "status": "success",
