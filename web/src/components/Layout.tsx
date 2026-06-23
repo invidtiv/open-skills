@@ -14,7 +14,7 @@ export default function Layout() {
           <h1 className="text-lg font-bold bg-gradient-to-r from-accent to-purple bg-clip-text text-transparent">
             Open Skills
           </h1>
-          <p className="text-xs text-text-dim mt-1">v2.0.0</p>
+          <p className="text-xs text-text-dim mt-1">v3.0.0</p>
         </div>
         <div className="flex-1 p-3 space-y-1">
           {NAV.map(({ to, label, icon }) => (
