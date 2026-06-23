@@ -1,7 +1,7 @@
 import { useState, useEffect } from 'react'
 import { useParams, useNavigate, Link } from 'react-router-dom'
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query'
-import { getSkill, saveSkillStructured, deleteSkill, validateSkill, listSkillFiles, readSkillFile } from '../api'
+import { getSkill, saveSkillStructured, deleteSkill, validateSkill, suggestFix, listSkillFiles, readSkillFile } from '../api'
 import { useToast } from '../components/Toast'
 import FrontmatterForm from '../components/FrontmatterForm'
 import ValidationPanel from '../components/ValidationPanel'
@@ -77,6 +77,24 @@ export default function SkillDetailPage() {
     } finally {
       setValidating(false)
     }
+  }
+
+  const handleSuggestFix = async () => {
+    if (!name || !validation) return null
+    try {
+      return await suggestFix(name, validation.errors, validation.warnings)
+    } catch (err) {
+      toast(err instanceof Error ? err.message : 'Failed to get suggestion', 'error')
+      return null
+    }
+  }
+
+  const handleApplyFix = (fm: Record<string, unknown>, b: string) => {
+    setFrontmatter(fm)
+    setBody(b)
+    setDirty(true)
+    setValidation(null)
+    toast('Fix applied — review and save when ready', 'success')
   }
 
   const handleFileSelect = async (path: string) => {
@@ -186,7 +204,12 @@ export default function SkillDetailPage() {
           </div>
           <div className="p-5">
             <h3 className="text-xs font-medium text-text-dim uppercase tracking-wider mb-3">Validation</h3>
-            <ValidationPanel result={validation} loading={validating} />
+            <ValidationPanel
+              result={validation}
+              loading={validating}
+              onSuggestFix={handleSuggestFix}
+              onApplyFix={handleApplyFix}
+            />
             {!validation && !validating && (
               <p className="text-xs text-text-dim">Click "Validate" to check this skill.</p>
             )}

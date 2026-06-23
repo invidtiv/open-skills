@@ -26,8 +26,8 @@ try:
 except ImportError:
     raise ImportError("PyYAML required: pip install pyyaml")
 
-VERSION = "2.0.0"
-SPEC_VERSION = "2.0.0"
+VERSION = "3.0.0"
+SPEC_VERSION = "3.0.0"
 
 logger = logging.getLogger("openskills")
 

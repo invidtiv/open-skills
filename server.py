@@ -183,6 +183,74 @@ def validate_skill(name: str):
     return validate_skill_content(content, skill_dir=skill_dir)
 
 
+class SuggestFixRequest(BaseModel):
+    errors: list[str]
+    warnings: list[str] = []
+
+
+@app.post("/api/skills/{name}/suggest-fix")
+def suggest_fix(name: str, req: SuggestFixRequest):
+    from openskills import get_api_key, EXTRACT_API_BASE, EXTRACT_MODEL
+    import urllib.request
+
+    _, skill_file = _resolve_or_404(name)
+    content = skill_file.read_text()
+
+    api_key = get_api_key()
+    if not api_key:
+        raise HTTPException(400, "No API key found. Set OPENROUTER_API_KEY.")
+
+    issues = "\n".join(f"- ERROR: {e}" for e in req.errors)
+    if req.warnings:
+        issues += "\n" + "\n".join(f"- WARNING: {w}" for w in req.warnings)
+
+    system_prompt = (
+        "You are an expert at writing Open Skill markdown files.\n"
+        "The user will provide a skill file that failed validation, along with the specific errors.\n"
+        "Return ONLY the corrected skill file content — raw markdown starting with ---.\n"
+        "Do NOT wrap the response in ```markdown code fences.\n"
+        "Fix every listed error while preserving the user's intent and existing content.\n"
+        "If a required section is missing, add a minimal placeholder.\n"
+        "If a frontmatter field is missing or malformed, add or fix it."
+    )
+
+    data = {
+        "model": EXTRACT_MODEL,
+        "messages": [
+            {"role": "system", "content": system_prompt},
+            {"role": "user", "content": (
+                f"This skill file failed validation with these issues:\n{issues}\n\n"
+                f"Here is the current skill file content:\n\n{content}"
+            )},
+        ],
+        "temperature": 0.2,
+    }
+
+    headers = {
+        "Content-Type": "application/json",
+        "Authorization": f"Bearer {api_key}",
+    }
+
+    http_req = urllib.request.Request(
+        EXTRACT_API_BASE,
+        data=__import__("json").dumps(data).encode("utf-8"),
+        headers=headers,
+        method="POST",
+    )
+
+    try:
+        with urllib.request.urlopen(http_req, timeout=90) as response:
+            res_data = __import__("json").loads(response.read().decode("utf-8"))
+            suggestion = res_data["choices"][0]["message"]["content"]
+            suggestion = re.sub(r'\n*CRITICAL RULES:.*', '', suggestion, flags=re.DOTALL).rstrip() + "\n"
+            suggestion = re.sub(r'^```\w*\n?', '', suggestion)
+            suggestion = re.sub(r'\n?```$', '', suggestion)
+            fm, body = core.parse_frontmatter(suggestion)
+            return {"suggestion": suggestion, "frontmatter": fm, "body": body}
+    except Exception as e:
+        raise HTTPException(502, f"LLM API call failed: {e}")
+
+
 @app.post("/api/skills/add")
 def add_skill(req: AddSkillRequest):
     src = Path(req.path).resolve()

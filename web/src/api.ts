@@ -46,6 +46,13 @@ export async function validateSkill(name: string): Promise<ValidationResult> {
   return request(`/skills/${encodeURIComponent(name)}/validate`, { method: 'POST' })
 }
 
+export async function suggestFix(name: string, errors: string[], warnings: string[]): Promise<{ suggestion: string; frontmatter: Record<string, unknown>; body: string }> {
+  return request(`/skills/${encodeURIComponent(name)}/suggest-fix`, {
+    method: 'POST',
+    body: JSON.stringify({ errors, warnings }),
+  })
+}
+
 export async function addSkill(path: string, scope: string): Promise<{ name: string }> {
   return request('/skills/add', { method: 'POST', body: JSON.stringify({ path, scope }) })
 }
