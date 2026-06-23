@@ -51,6 +51,8 @@ required_tools:
   - headless-browser
   - terminal
 output_format: "QA_EVIDENCE.md"
+disable-model-invocation: false
+user-invocable: true
 ---
 
 ## Objective

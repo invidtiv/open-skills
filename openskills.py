@@ -118,7 +118,7 @@ def cmd_validate(args):
     print(f"\nOpen Skills Validation — {skill_file.name} ({skill_dir.name}/)\n")
 
     content = skill_file.read_text()
-    result = validate_skill_content(content)
+    result = validate_skill_content(content, skill_dir=skill_dir)
 
     for check in result["checks"]:
         mark = "✓" if check["passed"] else "✗"
@@ -126,7 +126,12 @@ def cmd_validate(args):
         print(f"  [{mark}] {check['label']}{detail}")
 
     errors = result["errors"]
+    warnings = result.get("warnings", [])
     print(f"\n  Validation result: {len(errors)} errors found.")
+    if warnings:
+        print(f"  Warnings ({len(warnings)}):")
+        for w in warnings:
+            print(f"    \u26a0 {w}")
     if not errors:
         ok("This is a valid Open Skill.")
     else:
@@ -153,6 +158,13 @@ def cmd_list(args):
             print(f"    Triggers: {', '.join(s['triggers'])}")
         if s['required_tools']:
             print(f"    Tools: {', '.join(s['required_tools'])}")
+        flags = []
+        if s.get('disable_model_invocation'):
+            flags.append("disable-model-invocation")
+        if not s.get('user_invocable', True):
+            flags.append("user-invocable: false")
+        if flags:
+            print(f"    Flags: {', '.join(flags)}")
         print()
 
 # ── Test ────────────────────────────────────────────────────────────────────
@@ -226,6 +238,8 @@ def cmd_runbook(args):
         if result["status"] == "error":
             die(result["message"])
         ok(result["message"])
+        for w in result.get("warnings", []):
+            print(f"  \u26a0 {w}", file=sys.stderr)
 
     elif sub == "status":
         state = read_runbook_state()
@@ -510,14 +524,16 @@ CHECKS = [
      lambda fm, body, d: any((d / fn).exists() and (d / fn).stat().st_size > 200 for fn in ["skill.md", "SKILL.md"])),
     ("testable", "Does it have a verification step that confirms it worked?",
      lambda fm, body, d: "## Verification Contract (NON-NEGOTIABLE)" in body),
-    ("versioned", "Does it have a version number?",
-     lambda fm, body, d: "version" in fm or "name" in fm),
     ("deps-declared", "Are all tool/data/API dependencies listed?",
      lambda fm, body, d: "required_tools" in fm),
     ("perm-bounded", "Are its permissions explicit?",
      lambda fm, body, d: "boundaries" in fm),
     ("platform-agnostic", "Does the core work without platform-specific syntax?",
      lambda fm, body, d: not any(b in body for b in [".cursorrules", "CLAUDE.md", "codex.md"])),
+    ("validated", "Does it pass 'openskills validate' with zero errors?",
+     lambda fm, body, d: validate_skill_content(
+         find_skill_file(d).read_text() if find_skill_file(d) else "", skill_dir=d
+     )["valid"]),
 ]
 
 def cmd_score(args):

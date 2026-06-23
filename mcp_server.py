@@ -94,6 +94,7 @@ def open_skills_context_prompt() -> str:
     ]
 
     skills, _ = core.get_all_skills()
+    skills = [s for s in skills if not s.get("disable_model_invocation", False)]
 
     for s in skills:
         prompt_lines.append(f"## Skill: {s['name']} ({s['scope']})")
@@ -142,6 +143,8 @@ def list_skills() -> str:
             "boundaries": s["boundaries"],
             "required_tools": s["required_tools"],
             "output_format": s["output_format"],
+            "disable_model_invocation": s.get("disable_model_invocation", False),
+            "user_invocable": s.get("user_invocable", True),
         })
     return json.dumps(serializable, indent=2)
 
@@ -181,6 +184,27 @@ def get_runbook_state() -> str:
 def advance_runbook() -> str:
     """Advance the active runbook to the next phase."""
     result = core.advance_runbook()
+    return json.dumps(result, indent=2, default=str)
+
+
+@mcp.tool()
+def start_runbook(name: str) -> str:
+    """Start a runbook by name. Initializes the runbook state machine."""
+    result = core.start_runbook(name)
+    return json.dumps(result, indent=2, default=str)
+
+
+@mcp.tool()
+def prev_runbook() -> str:
+    """Revert the active runbook to the previous phase."""
+    result = core.prev_runbook()
+    return json.dumps(result, indent=2, default=str)
+
+
+@mcp.tool()
+def reset_runbook() -> str:
+    """Reset the active runbook state, clearing all progress."""
+    result = core.reset_runbook()
     return json.dumps(result, indent=2, default=str)
 
 

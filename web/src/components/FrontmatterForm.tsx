@@ -51,6 +51,20 @@ export default function FrontmatterForm({ frontmatter, onChange }: Props) {
           className="w-full bg-bg-code border border-border rounded-lg px-3 py-2 text-sm text-text focus:border-accent focus:outline-none"
         />
       </Field>
+      <div className="flex gap-6">
+        <ToggleField
+          label="Disable Model Invocation"
+          description="Prevent automatic trigger matching by the model"
+          value={frontmatter['disable-model-invocation'] as boolean ?? false}
+          onChange={v => update('disable-model-invocation', v)}
+        />
+        <ToggleField
+          label="User Invocable"
+          description="Allow explicit invocation by the user"
+          value={frontmatter['user-invocable'] as boolean ?? true}
+          onChange={v => update('user-invocable', v)}
+        />
+      </div>
     </div>
   )
 }
@@ -60,6 +74,35 @@ function Field({ label, children }: { label: string; children: React.ReactNode }
     <div>
       <label className="block text-xs font-medium text-text-dim mb-1">{label}</label>
       {children}
+    </div>
+  )
+}
+
+function ToggleField({ label, description, value, onChange }: {
+  label: string
+  description: string
+  value: boolean
+  onChange: (v: boolean) => void
+}) {
+  return (
+    <div className="flex items-center gap-2">
+      <button
+        type="button"
+        onClick={() => onChange(!value)}
+        className={`relative inline-flex h-5 w-9 items-center rounded-full transition-colors ${
+          value ? 'bg-accent' : 'bg-border'
+        }`}
+      >
+        <span
+          className={`inline-block h-3.5 w-3.5 transform rounded-full bg-white transition-transform ${
+            value ? 'translate-x-4.5' : 'translate-x-1'
+          }`}
+        />
+      </button>
+      <div>
+        <div className="text-xs font-medium text-text">{label}</div>
+        <div className="text-[10px] text-text-dim">{description}</div>
+      </div>
     </div>
   )
 }

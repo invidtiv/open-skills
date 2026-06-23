@@ -11,7 +11,7 @@ from pathlib import Path
 
 from fastapi import FastAPI, HTTPException, Request, Response
 from fastapi.staticfiles import StaticFiles
-from fastapi.responses import FileResponse
+from fastapi.responses import FileResponse, JSONResponse
 from pydantic import BaseModel
 
 import core
@@ -60,15 +60,17 @@ class ValidationResult(BaseModel):
     valid: bool
     checks: list[ValidationCheck]
     errors: list[str]
+    warnings: list[str] = []
 
 # ── Validation logic (extracted from CLI) ──────────────────────────────────
 
-def validate_skill_content(content: str) -> ValidationResult:
-    result = core.validate_skill_content(content)
+def validate_skill_content(content: str, skill_dir: Path = None) -> ValidationResult:
+    result = core.validate_skill_content(content, skill_dir=skill_dir)
     return ValidationResult(
         valid=result["valid"],
         checks=[ValidationCheck(**c) for c in result["checks"]],
         errors=result["errors"],
+        warnings=result.get("warnings", []),
     )
 
 
@@ -95,6 +97,8 @@ def list_skills():
                 "boundaries": s["boundaries"],
                 "required_tools": s["required_tools"],
                 "output_format": s["output_format"],
+                "disable_model_invocation": s.get("disable_model_invocation", False),
+                "user_invocable": s.get("user_invocable", True),
             }
             for s in sorted(skills, key=lambda x: x["name"])
         ],
@@ -174,9 +178,9 @@ def delete_skill(name: str):
 
 @app.post("/api/skills/{name}/validate")
 def validate_skill(name: str):
-    _, skill_file = _resolve_or_404(name)
+    skill_dir, skill_file = _resolve_or_404(name)
     content = skill_file.read_text()
-    return validate_skill_content(content)
+    return validate_skill_content(content, skill_dir=skill_dir)
 
 
 @app.post("/api/skills/add")
@@ -346,6 +350,11 @@ if static_dir.is_dir():
 
     @app.get("/{full_path:path}")
     def spa_fallback(full_path: str):
+        if full_path.startswith("api/"):
+            return JSONResponse(
+                status_code=404,
+                content={"detail": f"API endpoint '/{full_path}' not found"},
+            )
         file_path = static_dir / full_path
         if file_path.is_file():
             return FileResponse(file_path)

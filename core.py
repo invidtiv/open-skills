@@ -41,6 +41,8 @@ boundaries:
 required_tools:
   - terminal
 output_format: "QA_EVIDENCE.md"
+disable-model-invocation: false
+user-invocable: true
 ---
 
 ## Objective
@@ -59,6 +61,16 @@ Your job is NOT done until you provide:
 REQUIRED_FM_FIELDS = ["name", "description", "triggers", "boundaries", "required_tools", "output_format"]
 REQUIRED_SECTIONS = ["## Objective", "## Procedure", "## Verification Contract (NON-NEGOTIABLE)"]
 
+OPTIONAL_FM_FIELDS: dict[str, dict[str, Any]] = {
+    "disable-model-invocation": {"type": bool, "default": False},
+    "user-invocable": {"type": bool, "default": True},
+}
+
+PLATFORM_SPECIFIC_MARKERS = [
+    ".cursorrules", "CLAUDE.md", "codex.md",
+    ".cursor/rules", ".claude/skills", "AGENTS.md",
+]
+
 
 def slugify(name: str) -> str:
     """Slugify a skill name. Raises ValueError if result is empty."""
@@ -69,14 +81,16 @@ def slugify(name: str) -> str:
     return safe
 
 
-def validate_skill_content(content: str) -> dict:
-    """Validate skill markdown content. Returns dict with 'errors' and 'checks'.
+def validate_skill_content(content: str, skill_dir: Optional[Path] = None) -> dict:
+    """Validate skill markdown content. Returns dict with 'errors', 'checks', and 'warnings'.
 
     Single source of truth for validation — used by both CLI and server.
+    If skill_dir is provided, checks for adapter staleness.
     """
     fm, body = parse_frontmatter(content)
     checks = []
     errors = []
+    warnings = []
 
     if not fm:
         errors.append("Missing or invalid YAML frontmatter block")
@@ -107,12 +121,37 @@ def validate_skill_content(content: str) -> dict:
                     checks.append({
                         "label": f"Field '{field}' declared", "passed": True, "detail": val})
 
+        for field, spec in OPTIONAL_FM_FIELDS.items():
+            val = fm.get(field)
+            if val is None:
+                checks.append({
+                    "label": f"Optional field '{field}' declared",
+                    "passed": True,
+                    "detail": f"default: {spec['default']}",
+                })
+            elif not isinstance(val, bool):
+                errors.append(f"Optional field '{field}' must be a boolean (true/false)")
+                checks.append({"label": f"Optional field '{field}' format valid", "passed": False})
+            else:
+                checks.append({
+                    "label": f"Optional field '{field}' declared",
+                    "passed": True,
+                    "detail": str(val).lower(),
+                })
+
     for section in REQUIRED_SECTIONS:
         if section in body:
             checks.append({"label": f"Section '{section}' exists", "passed": True})
         else:
             errors.append(f"Missing required section '{section}'")
             checks.append({"label": f"Section '{section}' exists", "passed": False})
+
+    found_markers = [m for m in PLATFORM_SPECIFIC_MARKERS if m in body]
+    if found_markers:
+        errors.append(f"Body contains platform-specific syntax: {', '.join(found_markers)}")
+        checks.append({"label": "Platform-agnostic body", "passed": False, "detail": ", ".join(found_markers)})
+    else:
+        checks.append({"label": "Platform-agnostic body", "passed": True})
 
     if "## Verification Contract (NON-NEGOTIABLE)" in body:
         v_section = body.split("## Verification Contract (NON-NEGOTIABLE)")[1]
@@ -127,7 +166,34 @@ def validate_skill_content(content: str) -> dict:
             errors.append("Verification Contract must contain at least one checklist item")
             checks.append({"label": "Verification Contract has checklist items", "passed": False})
 
-    return {"valid": len(errors) == 0, "checks": checks, "errors": errors}
+    if skill_dir:
+        adapter_dir = skill_dir / "adapters"
+        if adapter_dir.is_dir():
+            skill_file = find_skill_file(skill_dir)
+            if skill_file:
+                skill_mtime = skill_file.stat().st_mtime
+                stale_adapters = []
+                for af in sorted(adapter_dir.rglob("*")):
+                    if af.is_file() and af.stat().st_mtime < skill_mtime:
+                        stale_adapters.append(str(af.relative_to(adapter_dir)))
+                if stale_adapters:
+                    warnings.append(
+                        f"Adapters are stale (older than skill.md): {', '.join(stale_adapters)}. "
+                        "Re-run 'openskills export' to regenerate."
+                    )
+                    checks.append({
+                        "label": "Adapters up-to-date",
+                        "passed": False,
+                        "detail": f"{len(stale_adapters)} stale",
+                    })
+                else:
+                    checks.append({"label": "Adapters up-to-date", "passed": True})
+            else:
+                checks.append({"label": "Adapters up-to-date", "passed": True, "detail": "no skill file"})
+        else:
+            checks.append({"label": "Adapters up-to-date", "passed": True, "detail": "no adapters dir"})
+
+    return {"valid": len(errors) == 0, "checks": checks, "errors": errors, "warnings": warnings}
 
 STOP_WORDS = frozenset({
     "a", "an", "the", "on", "in", "at", "to", "for", "of", "is", "it",
@@ -274,6 +340,8 @@ def scan_skills(scope_dir: Path, scope_name: str) -> list[dict[str, Any]]:
                 "boundaries": fm.get("boundaries", []),
                 "required_tools": fm.get("required_tools", []),
                 "output_format": fm.get("output_format", ""),
+                "disable_model_invocation": fm.get("disable-model-invocation", False),
+                "user_invocable": fm.get("user-invocable", True),
                 "body": body,
             })
         except Exception as e:
@@ -377,6 +445,19 @@ def start_runbook(name: str) -> dict:
     if not phases:
         return {"status": "error", "message": f"No phases parsed from '{rb_file}'"}
 
+    all_skills, _ = get_all_skills()
+    skill_names = {s["name"] for s in all_skills}
+    missing_skills = []
+    for p in phases:
+        if p["skill"] not in skill_names:
+            missing_skills.append(p["skill"])
+    warnings = []
+    if missing_skills:
+        warnings.append(
+            f"Referenced skills not found: {', '.join(sorted(set(missing_skills)))}. "
+            "These phases will fail at execution time."
+        )
+
     state = {
         "runbook": rb_file.stem,
         "current_phase": phases[0]["phase"],
@@ -389,6 +470,7 @@ def start_runbook(name: str) -> dict:
         "message": f"Started runbook '{rb_file.stem}' with {len(phases)} phases. "
                    f"Active phase: {state['current_phase']}.",
         "state": state,
+        "warnings": warnings,
     }
 
 
@@ -470,9 +552,15 @@ def reset_runbook() -> dict:
 # ── Trigger Matching ────────────────────────────────────────────────────────
 
 def match_triggers(prompt: str, skills: Optional[list[dict]] = None) -> list[dict]:
-    """Match user prompt against skill triggers. Returns matching skills."""
+    """Match user prompt against skill triggers. Returns matching skills.
+
+    Skills with disable-model-invocation=true are excluded from
+    automatic trigger matching — they must be explicitly invoked by the user.
+    """
     if skills is None:
         skills, _ = get_all_skills()
+
+    skills = [s for s in skills if not s.get("disable_model_invocation", False)]
 
     matches: list[dict] = []
     prompt_lower = prompt.lower()

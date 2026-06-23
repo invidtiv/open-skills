@@ -7,6 +7,8 @@ export interface Skill {
   boundaries: string[]
   required_tools: string[]
   output_format: string
+  disable_model_invocation: boolean
+  user_invocable: boolean
 }
 
 export interface SkillDetail extends Skill {
@@ -32,6 +34,7 @@ export interface ValidationResult {
   valid: boolean
   checks: ValidationCheck[]
   errors: string[]
+  warnings: string[]
 }
 
 export interface Runbook {

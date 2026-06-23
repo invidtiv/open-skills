@@ -107,6 +107,13 @@ output_format: "resolution.json"
 > **Optional fields**: `version`, `category`, `tags`, `author`, `license`,
 > `created`, `updated` — these are accepted but not required by validation.
 
+> **Invocation control fields** (optional, boolean, default values shown):
+>
+> | Field | Default | Description |
+> |---|---|---|
+> | `disable-model-invocation` | `false` | When `true`, the skill is excluded from automatic trigger matching and context injection. The model will not suggest or auto-activate it — it must be explicitly invoked by the user. |
+> | `user-invocable` | `true` | When `false`, the skill cannot be directly invoked by the user. It is only available as a phase in a runbook or via programmatic access. Use this for internal/helper skills that should never be run standalone. |
+
 #### Required Body Sections
 
 The body follows this structure:
