@@ -517,6 +517,36 @@ def cmd_extract(args):
     ok(f"Extracted skill '{name}' and wrote draft to: {skill_file}")
     info("You can now review, modify, and commit it.")
 
+# ── Add (import external skill) ─────────────────────────────────────────────
+
+def cmd_add(args):
+    if not args:
+        die("Usage: openskills add <path-to-skill-dir> [--local]")
+    src = Path(args[0]).resolve()
+    is_local = "--local" in args
+
+    skill_file = find_skill_file(src)
+    if not skill_file:
+        die(f"No skill.md or SKILL.md found in {src}")
+
+    fm, body = parse_frontmatter(skill_file.read_text())
+    name = fm.get("name")
+    if not name:
+        die(f"Skill at {src} has no 'name' field in frontmatter")
+
+    safe = re.sub(r'[^a-z0-9-]', '-', name.lower().strip())
+    base_dir = get_local_dir() if is_local else get_global_dir()
+    target_dir = base_dir / "skills" / safe
+
+    if target_dir.exists():
+        die(f"Skill '{safe}' already exists at {target_dir}. Remove it first or pick a different name.")
+
+    target_dir.mkdir(parents=True)
+    shutil.copytree(src, target_dir, dirs_exist_ok=True)
+
+    scope = "Local" if is_local else "Global"
+    ok(f"Added skill '{safe}' to {scope} scope at {target_dir}")
+
 # ── MCP Starter ─────────────────────────────────────────────────────────────
 
 def cmd_mcp(args):
@@ -724,6 +754,7 @@ COMMANDS = {
     "init": cmd_init,
     "validate": cmd_validate,
     "list": cmd_list,
+    "add": cmd_add,
     "test": cmd_test,
     "runbook": cmd_runbook,
     "extract": cmd_extract,
@@ -738,6 +769,7 @@ HELP_TEXT = {
     "init":      "Scaffold a new Open Skill (local/global)",
     "validate":  "Validate a skill package or markdown file",
     "list":      "List all skills in Local and Global scopes",
+    "add":       "Copy an external skill into Global (or --local) scope",
     "test":      "Run a skill's unit tests",
     "runbook":   "Manage runbook execution (list, start, status, next, prev, reset)",
     "extract":   "Extract procedural skill from latest chat session",
