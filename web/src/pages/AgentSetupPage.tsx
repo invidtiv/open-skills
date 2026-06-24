@@ -212,6 +212,8 @@ function ManualTargetForm() {
               className="w-full bg-bg-code border border-border rounded-lg px-3 py-2 text-sm text-text focus:border-accent focus:outline-none"
             >
               <option value="mcp-json">mcp-json</option>
+              <option value="mcp-toml">mcp-toml</option>
+              <option value="mcp-yaml">mcp-yaml</option>
             </select>
           </div>
           <div className="flex-1">

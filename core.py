@@ -1029,29 +1029,49 @@ AGENT_REGISTRY: dict[str, dict[str, Any]] = {
         "label": "Claude Code",
         "format": "mcp-json",
         "paths": {
-            "darwin": "~/.claude/claude_desktop_config.json",
-            "linux": "~/.claude/claude_desktop_config.json",
-            "windows": "%USERPROFILE%\\.claude\\claude_desktop_config.json",
+            "darwin": "~/.mcp.json",
+            "linux": "~/.mcp.json",
+            "windows": "%USERPROFILE%\\.mcp.json",
         },
         "servers_key": "mcpServers",
     },
     "devin": {
-        "label": "devin",
+        "label": "Windsurf / Devin",
         "format": "mcp-json",
         "paths": {
-            "darwin": "~/.codeium/devin/mcp_config.json",
-            "linux": "~/.codeium/devin/mcp_config.json",
-            "windows": "%USERPROFILE%\\.codeium\\devin\\mcp_config.json",
+            "darwin": "~/.codeium/windsurf/mcp_config.json",
+            "linux": "~/.codeium/windsurf/mcp_config.json",
+            "windows": "%USERPROFILE%\\.codeium\\windsurf\\mcp_config.json",
         },
         "servers_key": "mcpServers",
     },
     "codex": {
         "label": "Codex",
+        "format": "mcp-toml",
+        "paths": {
+            "darwin": "~/.codex/config.toml",
+            "linux": "~/.codex/config.toml",
+            "windows": "%USERPROFILE%\\.codex\\config.toml",
+        },
+        "servers_key": "mcp_servers",
+    },
+    "hermes": {
+        "label": "Hermes",
+        "format": "mcp-yaml",
+        "paths": {
+            "darwin": "~/.hermes/config.yaml",
+            "linux": "~/.hermes/config.yaml",
+            "windows": "%USERPROFILE%\\.hermes\\config.yaml",
+        },
+        "servers_key": "mcp_servers",
+    },
+    "kimi": {
+        "label": "Kimi",
         "format": "mcp-json",
         "paths": {
-            "darwin": "~/.codex/mcp_config.json",
-            "linux": "~/.codex/mcp_config.json",
-            "windows": "%USERPROFILE%\\.codex\\mcp_config.json",
+            "darwin": "~/.kimi/mcp.json",
+            "linux": "~/.kimi/mcp.json",
+            "windows": "%USERPROFILE%\\.kimi\\mcp.json",
         },
         "servers_key": "mcpServers",
     },
@@ -1122,6 +1142,70 @@ def _write_mcp_json_config(path: Path, config: dict) -> None:
     path.write_text(json.dumps(config, indent=2) + "\n")
 
 
+def _read_toml_config(path: Path) -> dict:
+    """Read and parse a TOML config file. Returns empty dict if missing."""
+    if not path.exists():
+        return {}
+    try:
+        import tomllib
+        return tomllib.loads(path.read_text())
+    except Exception as e:
+        raise ValueError(f"Failed to parse TOML config {path}: {e}")
+
+
+def _toml_entry_for_server(entry: dict) -> str:
+    """Render a single MCP server entry as TOML text."""
+    lines = [f'[mcp_servers.{SERVER_ENTRY_NAME}]']
+    lines.append(f'command = {json.dumps(entry["command"])}')
+    args_str = ", ".join(json.dumps(a) for a in entry["args"])
+    lines.append(f"args = [ {args_str} ]")
+    if entry.get("env"):
+        lines.append("")
+        lines.append(f"[mcp_servers.{SERVER_ENTRY_NAME}.env]")
+        for k, v in entry["env"].items():
+            lines.append(f'{k} = {json.dumps(v)}')
+    return "\n".join(lines) + "\n"
+
+
+def _remove_toml_server_section(content: str) -> str:
+    """Remove the [mcp_servers.open-skills] section (and its .env sub-section) from TOML text."""
+    lines = content.splitlines(keepends=True)
+    result = []
+    skip = False
+    header_re = re.compile(r'^\[')
+    target_re = re.compile(rf'^\[mcp_servers\.{re.escape(SERVER_ENTRY_NAME)}(\]|\.)')
+    for line in lines:
+        if target_re.match(line.strip()):
+            skip = True
+            continue
+        if skip and header_re.match(line.strip()) and not target_re.match(line.strip()):
+            skip = False
+        if not skip:
+            result.append(line)
+    return "".join(result)
+
+
+def _read_yaml_config(path: Path) -> dict:
+    """Read and parse a YAML config file. Returns empty dict if missing."""
+    if not path.exists():
+        return {}
+    try:
+        import yaml
+        return yaml.safe_load(path.read_text()) or {}
+    except Exception as e:
+        raise ValueError(f"Failed to parse YAML config {path}: {e}")
+
+
+def _yaml_entry_for_server(entry: dict) -> str:
+    """Render a single MCP server entry as YAML text to append under mcp_servers:."""
+    import yaml
+    return yaml.dump(
+        {"mcp_servers": {SERVER_ENTRY_NAME: entry}},
+        default_flow_style=False,
+        sort_keys=False,
+    )
+
+
 def _generate_diff(old_content: str, new_content: str) -> str:
     """Generate a simple unified diff between old and new content."""
     import difflib
@@ -1146,7 +1230,13 @@ def detect_agents() -> list[dict[str, Any]]:
         installed = False
         if detected:
             try:
-                config = _read_mcp_json_config(config_path)
+                fmt = agent["format"]
+                if fmt == "mcp-toml":
+                    config = _read_toml_config(config_path)
+                elif fmt == "mcp-yaml":
+                    config = _read_yaml_config(config_path)
+                else:
+                    config = _read_mcp_json_config(config_path)
                 servers = config.get(agent["servers_key"], {})
                 installed = SERVER_ENTRY_NAME in servers
             except Exception:
@@ -1175,12 +1265,10 @@ def connect_agent(
 
     Returns dict with action, path, diff (if dry_run).
     """
-    if format != "mcp-json":
-        return {"action": "failed", "path": "", "error": f"Unsupported format: {format}"}
-
     if config_path:
         target_path = Path(config_path).expanduser()
         servers_key = "mcpServers"
+        fmt = format
     else:
         agent = AGENT_REGISTRY.get(agent_id)
         if not agent:
@@ -1189,10 +1277,18 @@ def connect_agent(
         if target_path is None:
             return {"action": "failed", "path": "", "error": f"No config path for agent '{agent_id}' on this OS"}
         servers_key = agent["servers_key"]
+        fmt = agent["format"]
 
-    old_content = ""
-    if target_path.exists():
-        old_content = target_path.read_text()
+    if fmt not in ("mcp-json", "mcp-toml", "mcp-yaml"):
+        return {"action": "failed", "path": "", "error": f"Unsupported format: {fmt}"}
+
+    entry = _build_server_entry(scope)
+    old_content = target_path.read_text() if target_path.exists() else ""
+
+    if fmt == "mcp-toml":
+        return _connect_agent_toml(target_path, old_content, entry, dry_run, agent_id)
+    if fmt == "mcp-yaml":
+        return _connect_agent_yaml(target_path, old_content, entry, dry_run, agent_id)
 
     try:
         config = json.loads(old_content) if old_content else {}
@@ -1203,7 +1299,6 @@ def connect_agent(
         return {"action": "failed", "path": str(target_path), "error": "Config file root is not a JSON object"}
 
     servers = config.setdefault(servers_key, {})
-    entry = _build_server_entry(scope)
 
     was_installed = SERVER_ENTRY_NAME in servers
     action = "updated" if was_installed else "installed"
@@ -1233,6 +1328,123 @@ def connect_agent(
     return {"action": action, "path": str(target_path), "diff": diff}
 
 
+def _connect_agent_toml(
+    target_path: Path, old_content: str, entry: dict, dry_run: bool, agent_id: str,
+) -> dict[str, Any]:
+    """Handle connect for TOML-format configs (Codex)."""
+    try:
+        config = _read_toml_config(target_path) if old_content else {}
+    except ValueError as e:
+        return {"action": "failed", "path": str(target_path), "error": str(e)}
+
+    servers = config.get("mcp_servers", {})
+    was_installed = SERVER_ENTRY_NAME in servers
+    action = "updated" if was_installed else "installed"
+
+    cleaned = _remove_toml_server_section(old_content) if old_content else ""
+    section_text = _toml_entry_for_server(entry)
+    new_content = cleaned.rstrip("\n") + "\n\n" + section_text if cleaned.strip() else section_text
+    diff = _generate_diff(old_content, new_content) if old_content else None
+
+    if dry_run:
+        return {"action": action, "path": str(target_path), "diff": diff or new_content}
+
+    backup = _backup_file(target_path)
+    target_path.parent.mkdir(parents=True, exist_ok=True)
+    target_path.write_text(new_content)
+
+    try:
+        import tomllib
+        verify = tomllib.loads(target_path.read_text())
+        if not isinstance(verify, dict):
+            raise ValueError("Verified content is not a dict")
+    except Exception as e:
+        if backup and backup.exists():
+            shutil.copy2(str(backup), str(target_path))
+        return {"action": "failed", "path": str(target_path), "error": f"Write validation failed, rolled back: {e}"}
+
+    logger.info("connect_agent: agent=%s action=%s path=%s", agent_id, action, target_path)
+    return {"action": action, "path": str(target_path), "diff": diff}
+
+
+def _remove_yaml_server_block(content: str) -> str:
+    """Remove the open-skills entry from mcp_servers: in YAML, preserving comments."""
+    lines = content.splitlines(keepends=True)
+    result = []
+    skip = False
+    entry_indent = None
+    for line in lines:
+        stripped = line.lstrip()
+        if stripped.startswith(f"{SERVER_ENTRY_NAME}:") and not skip:
+            cur_indent = len(line) - len(stripped)
+            entry_indent = cur_indent
+            skip = True
+            continue
+        if skip:
+            if stripped and not stripped.startswith("#"):
+                cur_indent = len(line) - len(stripped)
+                if cur_indent <= entry_indent:
+                    skip = False
+            elif not stripped.strip():
+                pass
+            else:
+                continue
+        if not skip:
+            result.append(line)
+    return "".join(result)
+
+
+def _connect_agent_yaml(
+    target_path: Path, old_content: str, entry: dict, dry_run: bool, agent_id: str,
+) -> dict[str, Any]:
+    """Handle connect for YAML-format configs (Hermes). Text-based to preserve comments."""
+    import yaml
+    try:
+        config = _read_yaml_config(target_path) if old_content else {}
+    except ValueError as e:
+        return {"action": "failed", "path": str(target_path), "error": str(e)}
+
+    servers = config.get("mcp_servers") or {}
+    was_installed = SERVER_ENTRY_NAME in servers
+    action = "updated" if was_installed else "installed"
+
+    args_yaml = json.dumps(entry["args"])
+    entry_lines = f"  {SERVER_ENTRY_NAME}:\n    command: \"{entry['command']}\"\n    args: {args_yaml}\n"
+
+    if was_installed:
+        cleaned = _remove_yaml_server_block(old_content)
+    else:
+        cleaned = old_content
+
+    if "mcp_servers:" in cleaned:
+        idx = cleaned.index("mcp_servers:")
+        end_of_line = cleaned.index("\n", idx) + 1
+        new_content = cleaned[:end_of_line] + entry_lines + cleaned[end_of_line:]
+    else:
+        new_content = cleaned.rstrip("\n") + "\n\nmcp_servers:\n" + entry_lines
+
+    diff = _generate_diff(old_content, new_content) if old_content else None
+
+    if dry_run:
+        return {"action": action, "path": str(target_path), "diff": diff or new_content}
+
+    backup = _backup_file(target_path)
+    target_path.parent.mkdir(parents=True, exist_ok=True)
+    target_path.write_text(new_content)
+
+    try:
+        verify = yaml.safe_load(target_path.read_text())
+        if not isinstance(verify, dict):
+            raise ValueError("Verified content is not a dict")
+    except Exception as e:
+        if backup and backup.exists():
+            shutil.copy2(str(backup), str(target_path))
+        return {"action": "failed", "path": str(target_path), "error": f"Write validation failed, rolled back: {e}"}
+
+    logger.info("connect_agent: agent=%s action=%s path=%s", agent_id, action, target_path)
+    return {"action": action, "path": str(target_path), "diff": diff}
+
+
 def disconnect_agent(
     agent_id: str,
     *,
@@ -1246,6 +1458,7 @@ def disconnect_agent(
     if config_path:
         target_path = Path(config_path).expanduser()
         servers_key = "mcpServers"
+        fmt = "mcp-json"
     else:
         agent = AGENT_REGISTRY.get(agent_id)
         if not agent:
@@ -1254,11 +1467,17 @@ def disconnect_agent(
         if target_path is None:
             return {"action": "failed", "path": "", "error": f"No config path for agent '{agent_id}' on this OS"}
         servers_key = agent["servers_key"]
+        fmt = agent["format"]
 
     if not target_path.exists():
         return {"action": "skipped", "path": str(target_path), "error": "Config file does not exist"}
 
     old_content = target_path.read_text()
+
+    if fmt == "mcp-toml":
+        return _disconnect_agent_toml(target_path, old_content, dry_run, agent_id)
+    if fmt == "mcp-yaml":
+        return _disconnect_agent_yaml(target_path, old_content, dry_run, agent_id)
 
     try:
         config = json.loads(old_content)
@@ -1285,6 +1504,78 @@ def disconnect_agent(
 
     try:
         verify = json.loads(target_path.read_text())
+        if not isinstance(verify, dict):
+            raise ValueError("Verified content is not a dict")
+    except Exception as e:
+        if backup and backup.exists():
+            shutil.copy2(str(backup), str(target_path))
+        return {"action": "failed", "path": str(target_path), "error": f"Write validation failed, rolled back: {e}"}
+
+    logger.info("disconnect_agent: agent=%s path=%s", agent_id, target_path)
+    return {"action": "uninstalled", "path": str(target_path), "diff": diff}
+
+
+def _disconnect_agent_toml(
+    target_path: Path, old_content: str, dry_run: bool, agent_id: str,
+) -> dict[str, Any]:
+    """Handle disconnect for TOML-format configs (Codex)."""
+    try:
+        config = _read_toml_config(target_path)
+    except ValueError as e:
+        return {"action": "failed", "path": str(target_path), "error": str(e)}
+
+    servers = config.get("mcp_servers", {})
+    if SERVER_ENTRY_NAME not in servers:
+        return {"action": "skipped", "path": str(target_path), "error": "Open Skills entry not found"}
+
+    new_content = _remove_toml_server_section(old_content)
+    diff = _generate_diff(old_content, new_content)
+
+    if dry_run:
+        return {"action": "uninstalled", "path": str(target_path), "diff": diff}
+
+    backup = _backup_file(target_path)
+    target_path.write_text(new_content)
+
+    try:
+        import tomllib
+        verify = tomllib.loads(target_path.read_text())
+        if not isinstance(verify, dict):
+            raise ValueError("Verified content is not a dict")
+    except Exception as e:
+        if backup and backup.exists():
+            shutil.copy2(str(backup), str(target_path))
+        return {"action": "failed", "path": str(target_path), "error": f"Write validation failed, rolled back: {e}"}
+
+    logger.info("disconnect_agent: agent=%s path=%s", agent_id, target_path)
+    return {"action": "uninstalled", "path": str(target_path), "diff": diff}
+
+
+def _disconnect_agent_yaml(
+    target_path: Path, old_content: str, dry_run: bool, agent_id: str,
+) -> dict[str, Any]:
+    """Handle disconnect for YAML-format configs (Hermes). Text-based to preserve comments."""
+    import yaml
+    try:
+        config = _read_yaml_config(target_path)
+    except ValueError as e:
+        return {"action": "failed", "path": str(target_path), "error": str(e)}
+
+    servers = config.get("mcp_servers") or {}
+    if SERVER_ENTRY_NAME not in servers:
+        return {"action": "skipped", "path": str(target_path), "error": "Open Skills entry not found"}
+
+    new_content = _remove_yaml_server_block(old_content)
+    diff = _generate_diff(old_content, new_content)
+
+    if dry_run:
+        return {"action": "uninstalled", "path": str(target_path), "diff": diff}
+
+    backup = _backup_file(target_path)
+    target_path.write_text(new_content)
+
+    try:
+        verify = yaml.safe_load(target_path.read_text())
         if not isinstance(verify, dict):
             raise ValueError("Verified content is not a dict")
     except Exception as e:
