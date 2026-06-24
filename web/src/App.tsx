@@ -6,6 +6,7 @@ import SkillsPage from './pages/SkillsPage'
 import SkillDetailPage from './pages/SkillDetailPage'
 import RunbooksPage from './pages/RunbooksPage'
 import ExtractPage from './pages/ExtractPage'
+import AgentSetupPage from './pages/AgentSetupPage'
 
 const queryClient = new QueryClient({
   defaultOptions: { queries: { retry: 1, refetchOnWindowFocus: false } },
@@ -22,6 +23,7 @@ export default function App() {
               <Route path="/skills/:name" element={<SkillDetailPage />} />
               <Route path="/runbooks" element={<RunbooksPage />} />
               <Route path="/extract" element={<ExtractPage />} />
+              <Route path="/agents" element={<AgentSetupPage />} />
             </Route>
           </Routes>
         </BrowserRouter>

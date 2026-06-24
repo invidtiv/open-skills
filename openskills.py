@@ -10,6 +10,8 @@ Commands:
   runbook <subcommand>           Manage runbook state machine (list, start, status, next, prev, reset)
   extract --last-session         Extract new skill draft from last chat session
   mcp start                      Start the local MCP server
+  recommend <query>              Recommend skills for a task query
+  connect [options]              Register the MCP server into agent config files
   score <skill-dir>              Compute the one-question test score (legacy)
   export <skill-dir> <platform>  Export skill to platform adapter (legacy)
   install <platform> <skill-dir> Install skill into platform (legacy)
@@ -43,6 +45,17 @@ from core import (
     advance_runbook,
     prev_runbook,
     reset_runbook,
+    recommend_skills,
+    detect_agents,
+    connect_agent,
+    disconnect_agent,
+    AGENT_REGISTRY,
+    EXTRACT_API_BASE,
+    EXTRACT_MODEL,
+    get_api_key,
+    get_last_session_transcript,
+    call_llm_extraction,
+    extract_skill_name_from_md,
 )
 
 try:
@@ -50,11 +63,6 @@ try:
 except ImportError:
     print("✗ PyYAML required: pip install pyyaml", file=sys.stderr)
     sys.exit(1)
-
-# ── LLM config for extract ─────────────────────────────────────────────────
-
-EXTRACT_API_BASE = "https://openrouter.ai/api/v1/chat/completions"
-EXTRACT_MODEL = "deepseek/deepseek-v4-flash"
 
 # ── Helpers ─────────────────────────────────────────────────────────────────
 
@@ -69,7 +77,7 @@ def info(msg):
     print(f"  {msg}")
 
 def _warn_legacy(cmd_name):
-    print(f"  ⚠ '{cmd_name}' is a legacy command and will be removed in v3.0.", file=sys.stderr)
+    print(f"  ⚠ '{cmd_name}' is a legacy command. Use 'connect' for MCP server registration instead.", file=sys.stderr)
 
 # ── Init ────────────────────────────────────────────────────────────────────
 
@@ -282,160 +290,6 @@ def cmd_runbook(args):
 
 # ── Extractor ───────────────────────────────────────────────────────────────
 
-def get_last_session_transcript():
-    db_path = Path.home() / ".config" / "superpowers" / "conversation-index" / "db.sqlite"
-    if db_path.exists():
-        try:
-            import sqlite3
-            with sqlite3.connect(str(db_path)) as conn:
-                cursor = conn.cursor()
-                cursor.execute(
-                    "SELECT session_id, max(timestamp) FROM exchanges "
-                    "GROUP BY session_id ORDER BY max(timestamp) DESC LIMIT 1"
-                )
-                row = cursor.fetchone()
-                if row and row[0]:
-                    session_id = row[0]
-                    cursor.execute(
-                        "SELECT user_message, assistant_message FROM exchanges "
-                        "WHERE session_id = ? ORDER BY timestamp ASC",
-                        (session_id,),
-                    )
-                    rows = cursor.fetchall()
-                    if rows:
-                        transcript = []
-                        for user, assistant in rows:
-                            transcript.append(f"User: {user}")
-                            transcript.append(f"Assistant: {assistant}")
-                        return "\n\n".join(transcript)
-        except Exception as e:
-            sys.stderr.write(f"Warning: Failed to read from Superpowers DB: {e}\n")
-
-    history_file = Path.home() / ".claude" / "history.jsonl"
-    if history_file.exists():
-        try:
-            lines = history_file.read_text().splitlines()
-            if lines:
-                last_line_data = json.loads(lines[-1])
-                session_id = last_line_data.get("sessionId")
-                if session_id:
-                    transcript = []
-                    for line in lines:
-                        try:
-                            data = json.loads(line)
-                            if data.get("sessionId") == session_id and data.get("display"):
-                                transcript.append(f"User: {data['display']}")
-                        except Exception:
-                            continue
-                    if transcript:
-                        return "\n\n".join(transcript)
-        except Exception as e:
-            sys.stderr.write(f"Warning: Failed to read from Claude history log: {e}\n")
-
-    return None
-
-
-def get_api_key():
-    """Get OpenRouter API key from environment or .env file."""
-    key = os.environ.get("OPENROUTER_API_KEY")
-    if key:
-        return key
-
-    for env_path in [Path.cwd() / ".env", Path(__file__).parent / ".env"]:
-        if env_path.exists():
-            try:
-                for line in env_path.read_text().splitlines():
-                    line = line.strip()
-                    if line.startswith("#") or "=" not in line:
-                        continue
-                    k, v = line.split("=", 1)
-                    if k.strip() == "OPENROUTER_API_KEY":
-                        v = v.strip().strip("'\"")
-                        if v:
-                            return v
-            except Exception:
-                continue
-    return None
-
-
-def call_llm_completion(api_key, transcript):
-    """Call OpenRouter API to extract a skill from a transcript."""
-    import urllib.request
-
-    headers = {
-        "Content-Type": "application/json",
-        "Authorization": f"Bearer {api_key}",
-    }
-
-    system_message = (
-        "You are an expert technical writer and AI systems engineer.\n"
-        "Your task is to analyze the following chat transcript between a User and an Assistant.\n"
-        "Identify any repeatable, non-obvious technical procedures used or discussed in the chat.\n"
-        "Format the output strictly as an Open Skill markdown file.\n\n"
-        "The output MUST follow this EXACT structure — pay special attention to the\n"
-        "opening AND closing --- fences around the YAML frontmatter:\n\n"
-        "---\n"
-        "name: <slugified-skill-name>\n"
-        "description: <concise-description>\n"
-        "triggers:\n"
-        "  - \"<trigger-condition-1>\"\n"
-        "boundaries:\n"
-        "  - \"<boundary-condition-1>\"\n"
-        "required_tools:\n"
-        "  - <tool-1>\n"
-        "output_format: \"<expected-output-format>\"\n"
-        "---\n\n"
-        "## Objective\n"
-        "<Description of the objective of this skill>\n\n"
-        "## Procedure\n"
-        "1. <Step 1>\n"
-        "2. <Step 2>\n\n"
-        "## Verification Contract (NON-NEGOTIABLE)\n"
-        "Your job is NOT done until you provide:\n"
-        "- [ ] <Checklist item 1>\n"
-        "- [ ] <Checklist item 2>\n\n"
-        "CRITICAL RULES:\n"
-        "- The YAML block MUST start with --- on its own line AND end with --- on its own line.\n"
-        "- Do NOT omit the closing --- fence. Without it the file is invalid.\n"
-        "- Do not wrap the response in markdown code blocks like ```markdown.\n"
-        "- Respond ONLY with the raw markdown text starting with ---."
-    )
-
-    data = {
-        "model": EXTRACT_MODEL,
-        "messages": [
-            {"role": "system", "content": system_message},
-            {"role": "user", "content": f"Here is the chat transcript:\n\n{transcript}\n\nApply the instructions and extract the skill."},
-        ],
-        "temperature": 0.2,
-    }
-
-    req = urllib.request.Request(
-        EXTRACT_API_BASE,
-        data=json.dumps(data).encode("utf-8"),
-        headers=headers,
-        method="POST",
-    )
-
-    try:
-        with urllib.request.urlopen(req) as response:
-            res_data = json.loads(response.read().decode("utf-8"))
-            return res_data["choices"][0]["message"]["content"]
-    except Exception as e:
-        raise RuntimeError(f"OpenRouter API call failed: {e}")
-
-
-def extract_skill_name_from_md(md_content):
-    fm, _ = parse_frontmatter(md_content)
-    name = fm.get("name")
-    if name:
-        try:
-            return slugify(name)
-        except ValueError:
-            pass
-    return "extracted-skill"
-
-
 def cmd_extract(args):
     if not args or args[0] != "--last-session":
         die("Usage: openskills extract --last-session")
@@ -452,7 +306,7 @@ def cmd_extract(args):
         die("No API key found. Set OPENROUTER_API_KEY environment variable.")
 
     print(f"Calling OpenRouter ({EXTRACT_MODEL}) to extract repeatable procedures...")
-    skill_content = call_llm_completion(api_key, transcript)
+    skill_content = call_llm_extraction(api_key, transcript)
 
     skill_content = re.sub(
         r'\n*CRITICAL RULES:.*', '', skill_content, flags=re.DOTALL,
@@ -506,12 +360,178 @@ def cmd_add(args):
 
 def cmd_mcp(args):
     if not args or args[0] != "start":
-        die("Usage: openskills mcp start")
+        die("Usage: openskills mcp start [--scope all|local|global]")
+    scope = "all"
+    if "--scope" in args:
+        idx = args.index("--scope")
+        if idx + 1 < len(args):
+            scope = args[idx + 1]
     server_path = Path(__file__).parent / "mcp_server.py"
     if not server_path.exists():
         die("mcp_server.py not found")
     print("Starting Open Skills MCP Server...")
     subprocess.run([sys.executable, str(server_path)])
+
+# ── Connect (Agent MCP Registration) ────────────────────────────────────────
+
+def cmd_connect(args):
+    """Register the Open Skills MCP server into agent config files."""
+    if not args or args[0] in ("-h", "--help"):
+        print("Usage: openskills connect [options]")
+        print("")
+        print("Options:")
+        print("  --list              Detect agents and show install status")
+        print("  --cursor            Register into Cursor")
+        print("  --claude-code       Register into Claude Code")
+        print("  --devin             Register into devin")
+        print("  --codex             Register into Codex")
+        print("  --all               Register into every detected/supported agent")
+        print("  --target <path>     Register into a custom config path")
+        print("  --format <fmt>      Config format (default: mcp-json)")
+        print("  --scope <scope>     Skill scope: all, local, or global (default: all)")
+        print("  --dry-run           Preview changes without writing")
+        print("  --uninstall         Remove the Open Skills entry instead of adding it")
+        print("")
+        print("Examples:")
+        print("  openskills connect --list")
+        print("  openskills connect --cursor --codex")
+        print("  openskills connect --all --dry-run")
+        print("  openskills connect --target /path/to/config.json --format mcp-json")
+        print("  openskills connect --cursor --uninstall")
+        return
+
+    dry_run = "--dry-run" in args
+    uninstall = "--uninstall" in args
+    scope = "all"
+    if "--scope" in args:
+        idx = args.index("--scope")
+        if idx + 1 < len(args):
+            scope = args[idx + 1]
+
+    target_path = None
+    if "--target" in args:
+        idx = args.index("--target")
+        if idx + 1 < len(args):
+            target_path = args[idx + 1]
+
+    fmt = "mcp-json"
+    if "--format" in args:
+        idx = args.index("--format")
+        if idx + 1 < len(args):
+            fmt = args[idx + 1]
+
+    agent_flags = {
+        "--cursor": "cursor",
+        "--claude-code": "claude-code",
+        "--devin": "devin",
+        "--codex": "codex",
+    }
+
+    if "--list" in args:
+        agents = detect_agents()
+        print(f"\nDetected Agents ({len(agents)} registered):\n")
+        print(f"  {'Agent':<16} {'Detected':<10} {'Installed':<10} {'Config Path'}")
+        print(f"  {'-'*16} {'-'*10} {'-'*10} {'-'*40}")
+        for a in agents:
+            det = "✓" if a["detected"] else "✗"
+            inst = "✓" if a["installed"] else "✗"
+            print(f"  {a['label']:<16} {det:<10} {inst:<10} {a['configPath']}")
+        print()
+        return
+
+    if target_path:
+        if uninstall:
+            result = disconnect_agent("custom", config_path=target_path, dry_run=dry_run)
+        else:
+            result = connect_agent("custom", scope=scope, dry_run=dry_run, config_path=target_path, format=fmt)
+        _print_connect_result("custom", result, dry_run)
+        if result["action"] == "failed":
+            sys.exit(1)
+        return
+
+    selected = [aid for flag, aid in agent_flags.items() if flag in args]
+
+    if "--all" in args:
+        detected = detect_agents()
+        selected = [a["id"] for a in detected if a["detected"]]
+        if not selected:
+            die("No agents detected. Use --target to register into a custom path.")
+
+    if not selected:
+        die("No agents specified. Use --list, --all, or specific agent flags (--cursor, --codex, etc.)")
+
+    any_failed = False
+    for agent_id in selected:
+        if uninstall:
+            result = disconnect_agent(agent_id, dry_run=dry_run)
+        else:
+            result = connect_agent(agent_id, scope=scope, dry_run=dry_run)
+        _print_connect_result(agent_id, result, dry_run)
+        if result["action"] == "failed":
+            any_failed = True
+
+    if any_failed:
+        sys.exit(1)
+
+
+def _print_connect_result(agent_id: str, result: dict, dry_run: bool):
+    action = result.get("action", "unknown")
+    path = result.get("path", "")
+    if action == "failed":
+        print(f"  ✗ {agent_id}: failed — {result.get('error', 'unknown error')}")
+    elif action == "skipped":
+        print(f"  → {agent_id}: skipped — {result.get('error', '')}")
+    elif dry_run:
+        print(f"  [dry-run] {agent_id}: would be {action} at {path}")
+        if result.get("diff"):
+            print(result["diff"])
+    else:
+        print(f"  ✓ {agent_id}: {action} at {path}")
+
+
+# ── Recommend (CLI) ─────────────────────────────────────────────────────────
+
+def cmd_recommend(args):
+    """Recommend skills for a given task query."""
+    if not args:
+        die("Usage: openskills recommend <query> [--limit N] [--scope all|local|global]")
+
+    query = args[0]
+    limit = 5
+    scope = "all"
+
+    if "--limit" in args:
+        idx = args.index("--limit")
+        if idx + 1 < len(args):
+            try:
+                limit = int(args[idx + 1])
+            except ValueError:
+                die("--limit must be an integer")
+
+    if "--scope" in args:
+        idx = args.index("--scope")
+        if idx + 1 < len(args):
+            scope = args[idx + 1]
+
+    result = recommend_skills(query, scope=scope, limit=limit)
+
+    if result["results"]:
+        print(f"\nTop {len(result['results'])} skill(s) for: {query}")
+        if result.get("model"):
+            print(f"(ranked by {result['model']}, {result['elapsed_ms']}ms)")
+        else:
+            print(f"(keyword match, {result['elapsed_ms']}ms)")
+        print()
+        for i, r in enumerate(result["results"], 1):
+            print(f"  {i}. {r['name']} [{r['scope']}] — score: {r['score']:.2f}")
+            print(f"     {r['reason']}")
+            if r.get("triggers"):
+                triggers_str = ", ".join(t if isinstance(t, str) else str(t) for t in r["triggers"])
+                print(f"     Triggers: {triggers_str}")
+            print()
+    else:
+        print(f"\nNo skills found for: {query}")
+
 
 # ── Score (Legacy) ──────────────────────────────────────────────────────────
 
@@ -716,6 +736,8 @@ COMMANDS = {
     "runbook": cmd_runbook,
     "extract": cmd_extract,
     "mcp": cmd_mcp,
+    "connect": cmd_connect,
+    "recommend": cmd_recommend,
     "score": cmd_score,
     "export": cmd_export,
     "install": cmd_install,
@@ -731,9 +753,11 @@ HELP_TEXT = {
     "runbook":   "Manage runbook execution (list, start, status, next, prev, reset)",
     "extract":   "Extract procedural skill from latest chat session",
     "mcp":       "Manage the Open Skills MCP Server",
+    "connect":   "Register the MCP server into agent config files",
+    "recommend": "Recommend skills for a task query",
     "score":     "Compute the one-question test score (legacy)",
-    "export":    "Generate platform adapter (legacy)",
-    "install":   "Install a skill into a platform (legacy)",
+    "export":    "Generate platform adapter (legacy, use 'connect' for MCP)",
+    "install":   "Install a skill into a platform (legacy, use 'connect' for MCP)",
     "graph":     "Show skill dependency graph (legacy)",
 }
 

@@ -16,18 +16,23 @@ import json
 import logging
 import os
 import re
+import sys
 import tempfile
 import datetime
+import time
+import platform
+import shutil
+import urllib.request
 from pathlib import Path
-from typing import Any, Optional
+from typing import Any, Optional, Callable
 
 try:
     import yaml
 except ImportError:
     raise ImportError("PyYAML required: pip install pyyaml")
 
-VERSION = "3.1.0"
-SPEC_VERSION = "3.1.0"
+VERSION = "3.2.0"
+SPEC_VERSION = "3.2.0"
 
 logger = logging.getLogger("openskills")
 
@@ -589,3 +594,703 @@ def match_triggers(prompt: str, skills: Optional[list[dict]] = None) -> list[dic
                 break
 
     return matches
+
+
+# ── Skill Recommendation ────────────────────────────────────────────────────
+
+RECOMMEND_MIN_CANDIDATES = 3
+
+_RECOMMEND_SYSTEM_PROMPT = (
+    "You are a skill-routing classifier for an AI agent. "
+    "Given a task and a list of candidate skills (each with a name, description, and triggers), "
+    "return ONLY a JSON array ranking the most relevant skills for the task. "
+    'Each element: {"name": <exact skill name>, "score": <0.0–1.0 relevance>, "reason": <one short sentence>}. '
+    "Return at most N items, highest score first. No prose, no markdown, no code fences."
+)
+
+
+def _prefilter_candidates(query: str, skills: list[dict[str, Any]], cap: int) -> list[dict[str, Any]]:
+    """Deterministic pre-filter: trigger matching + keyword overlap on name/description.
+
+    Returns up to `cap` candidates sorted by relevance score (descending).
+    """
+    query_lower = query.lower()
+    query_words = set(re.findall(r'\w+', query_lower)) - STOP_WORDS
+
+    scored: list[tuple[float, dict[str, Any]]] = []
+    for s in skills:
+        if s.get("disable_model_invocation", False):
+            continue
+        score = 0.0
+        name_lower = s.get("name", "").lower()
+        desc_lower = s.get("description", "").lower()
+
+        for t in s.get("triggers", []):
+            t_str = t if isinstance(t, str) else str(t)
+            t_lower = t_str.lower()
+            if t_lower in query_lower:
+                score += 3.0
+                break
+            trigger_words = set(re.findall(r'\w+', t_lower)) - STOP_WORDS
+            if len(trigger_words) >= 2 and trigger_words.issubset(query_words):
+                score += 2.0
+                break
+
+        for w in query_words:
+            if w in name_lower:
+                score += 1.0
+            if w in desc_lower:
+                score += 0.5
+
+        if score > 0:
+            scored.append((score, s))
+
+    scored.sort(key=lambda x: x[0], reverse=True)
+    return [s for _, s in scored[:cap]]
+
+
+def _parse_llm_ranking(raw: str, candidate_names: set[str], limit: int) -> list[dict[str, Any]]:
+    """Parse LLM JSON ranking response, validate names, clamp scores."""
+    text = raw.strip()
+    text = re.sub(r'^```(?:json)?\s*\n?', '', text)
+    text = re.sub(r'\n?```\s*$', '', text)
+
+    try:
+        items = json.loads(text)
+    except json.JSONDecodeError:
+        return []
+
+    if not isinstance(items, list):
+        return []
+
+    results: list[dict[str, Any]] = []
+    for item in items:
+        if not isinstance(item, dict):
+            continue
+        name = item.get("name")
+        if not name or name not in candidate_names:
+            continue
+        score = item.get("score", 0.0)
+        try:
+            score = float(score)
+        except (TypeError, ValueError):
+            score = 0.0
+        score = max(0.0, min(1.0, score))
+        reason = str(item.get("reason", ""))[:140]
+        results.append({"name": name, "score": score, "reason": reason})
+        if len(results) >= limit:
+            break
+
+    return results
+
+
+def recommend_skills(
+    query: str,
+    *,
+    scope: str = "all",
+    limit: int = 5,
+    candidate_cap: int = 20,
+    llm_call: Optional[Callable[[str, str], str]] = None,
+) -> dict:
+    """Rank skills by relevance to `query`.
+
+    Pipeline:
+      1. candidates = prefilter(query, get_all_skills(scope), candidate_cap)
+      2. if no API key OR llm unavailable -> return prefilter order (degraded mode, llm_used=False)
+      3. ranked = llm_rank(query, candidates) -> parse strict JSON
+      4. return top `limit`
+
+    Returns dict with query, llm_used, model, results, candidate_count, elapsed_ms.
+    """
+    start = time.monotonic()
+
+    all_skills, _ = get_all_skills()
+    if scope == "local":
+        all_skills = [s for s in all_skills if s.get("scope", "").lower() == "local"]
+    elif scope == "global":
+        all_skills = [s for s in all_skills if s.get("scope", "").lower() == "global"]
+
+    candidates = _prefilter_candidates(query, all_skills, candidate_cap)
+
+    if len(candidates) < RECOMMEND_MIN_CANDIDATES:
+        candidates = [s for s in all_skills if not s.get("disable_model_invocation", False)][:candidate_cap]
+
+    candidate_names = {s["name"] for s in candidates}
+
+    def _degraded_result() -> dict:
+        results = []
+        for s in candidates[:limit]:
+            results.append({
+                "name": s["name"],
+                "scope": s.get("scope", "unknown"),
+                "score": 0.0,
+                "reason": "keyword match (degraded mode)",
+                "triggers": s.get("triggers", []),
+            })
+        elapsed = int((time.monotonic() - start) * 1000)
+        return {
+            "query": query,
+            "llm_used": False,
+            "model": None,
+            "results": results,
+            "candidate_count": len(candidates),
+            "elapsed_ms": elapsed,
+        }
+
+    if llm_call is None:
+        api_key = get_api_key()
+
+        if not api_key:
+            logger.info("recommend_skills: no API key, using degraded mode")
+            result = _degraded_result()
+            logger.info(
+                "recommend_skills: query=%r candidate_count=%d llm_used=False top=%s elapsed_ms=%d",
+                query, result["candidate_count"],
+                result["results"][0]["name"] if result["results"] else "none",
+                result["elapsed_ms"],
+            )
+            return result
+
+        model = os.environ.get("RECOMMEND_MODEL") or os.environ.get("EXTRACT_MODEL") or "deepseek/deepseek-v4-flash"
+        api_base = os.environ.get("RECOMMEND_API_BASE") or os.environ.get("EXTRACT_API_BASE") or "https://openrouter.ai/api/v1/chat/completions"
+        timeout_ms = int(os.environ.get("RECOMMEND_TIMEOUT_MS", "2000"))
+        timeout_s = timeout_ms / 1000.0
+
+        def _default_llm(sys_prompt: str, user_prompt: str) -> str:
+            data = {
+                "model": model,
+                "messages": [
+                    {"role": "system", "content": sys_prompt},
+                    {"role": "user", "content": user_prompt},
+                ],
+                "temperature": 0.2,
+            }
+            headers = {
+                "Content-Type": "application/json",
+                "Authorization": f"Bearer {api_key}",
+            }
+            req = urllib.request.Request(
+                api_base,
+                data=json.dumps(data).encode("utf-8"),
+                headers=headers,
+                method="POST",
+            )
+            with urllib.request.urlopen(req, timeout=timeout_s) as response:
+                res_data = json.loads(response.read().decode("utf-8"))
+                return res_data["choices"][0]["message"]["content"]
+
+        llm_call = _default_llm
+    else:
+        model = os.environ.get("RECOMMEND_MODEL") or os.environ.get("EXTRACT_MODEL") or "deepseek/deepseek-v4-flash"
+
+    candidate_lines = []
+    for s in candidates:
+        triggers_list = s.get("triggers", [])
+        triggers_str = ", ".join(t if isinstance(t, str) else str(t) for t in triggers_list) if triggers_list else "none"
+        candidate_lines.append(
+            f"- name: {s['name']}\n  description: {s.get('description', '')}\n  triggers: {triggers_str}"
+        )
+    user_prompt = (
+        f"Task: {query}\n\n"
+        f"Candidate skills (return at most {limit}):\n" + "\n".join(candidate_lines)
+    )
+
+    try:
+        raw_response = llm_call(_RECOMMEND_SYSTEM_PROMPT, user_prompt)
+        ranked = _parse_llm_ranking(raw_response, candidate_names, limit)
+    except Exception as e:
+        logger.warning("recommend_skills: LLM call failed: %s, using degraded mode", e)
+        result = _degraded_result()
+        logger.info(
+            "recommend_skills: query=%r candidate_count=%d llm_used=False model=%s top=%s elapsed_ms=%d",
+            query, result["candidate_count"], model,
+            result["results"][0]["name"] if result["results"] else "none",
+            result["elapsed_ms"],
+        )
+        return result
+
+    if not ranked:
+        logger.warning("recommend_skills: LLM returned no valid results, using degraded mode")
+        result = _degraded_result()
+        logger.info(
+            "recommend_skills: query=%r candidate_count=%d llm_used=False model=%s top=%s elapsed_ms=%d",
+            query, result["candidate_count"], model,
+            result["results"][0]["name"] if result["results"] else "none",
+            result["elapsed_ms"],
+        )
+        return result
+
+    skill_map = {s["name"]: s for s in candidates}
+    results = []
+    for r in ranked:
+        s = skill_map.get(r["name"])
+        if not s:
+            continue
+        results.append({
+            "name": r["name"],
+            "scope": s.get("scope", "unknown"),
+            "score": r["score"],
+            "reason": r["reason"],
+            "triggers": s.get("triggers", []),
+        })
+
+    elapsed = int((time.monotonic() - start) * 1000)
+    result = {
+        "query": query,
+        "llm_used": True,
+        "model": model,
+        "results": results,
+        "candidate_count": len(candidates),
+        "elapsed_ms": elapsed,
+    }
+    logger.info(
+        "recommend_skills: query=%r candidate_count=%d llm_used=True model=%s top=%s elapsed_ms=%d",
+        query, result["candidate_count"], model,
+        result["results"][0]["name"] if result["results"] else "none",
+        result["elapsed_ms"],
+    )
+    return result
+
+
+# ── LLM Config & API Key ──────────────────────────────────────────────────
+
+EXTRACT_API_BASE = "https://openrouter.ai/api/v1/chat/completions"
+EXTRACT_MODEL = "deepseek/deepseek-v4-flash"
+
+
+def get_api_key() -> Optional[str]:
+    """Get OpenRouter API key from environment or .env file."""
+    key = os.environ.get("OPENROUTER_API_KEY")
+    if key:
+        return key
+
+    for env_path in [Path.cwd() / ".env", Path(__file__).parent / ".env"]:
+        if env_path.exists():
+            try:
+                for line in env_path.read_text().splitlines():
+                    line = line.strip()
+                    if line.startswith("#") or "=" not in line:
+                        continue
+                    k, v = line.split("=", 1)
+                    if k.strip() == "OPENROUTER_API_KEY":
+                        v = v.strip().strip("'\"")
+                        if v:
+                            return v
+            except Exception:
+                continue
+    return None
+
+
+# ── Skill Extraction Pipeline ──────────────────────────────────────────────
+
+_EXTRACT_SYSTEM_PROMPT = (
+    "You are an expert technical writer and AI systems engineer.\n"
+    "Your task is to analyze the following chat transcript between a User and an Assistant.\n"
+    "Identify any repeatable, non-obvious technical procedures used or discussed in the chat.\n"
+    "Format the output strictly as an Open Skill markdown file.\n\n"
+    "The output MUST follow this EXACT structure — pay special attention to the\n"
+    "opening AND closing --- fences around the YAML frontmatter:\n\n"
+    "---\n"
+    "name: <slugified-skill-name>\n"
+    "description: <concise-description>\n"
+    "triggers:\n"
+    "  - \"<trigger-condition-1>\"\n"
+    "boundaries:\n"
+    "  - \"<boundary-condition-1>\"\n"
+    "required_tools:\n"
+    "  - <tool-1>\n"
+    "output_format: \"<expected-output-format>\"\n"
+    "---\n\n"
+    "## Objective\n"
+    "<Description of the objective of this skill>\n\n"
+    "## Procedure\n"
+    "1. <Step 1>\n"
+    "2. <Step 2>\n\n"
+    "## Verification Contract (NON-NEGOTIABLE)\n"
+    "Your job is NOT done until you provide:\n"
+    "- [ ] <Checklist item 1>\n"
+    "- [ ] <Checklist item 2>\n\n"
+    "CRITICAL RULES:\n"
+    "- The YAML block MUST start with --- on its own line AND end with --- on its own line.\n"
+    "- Do NOT omit the closing --- fence. Without it the file is invalid.\n"
+    "- Do not wrap the response in markdown code blocks like ```markdown.\n"
+    "- Respond ONLY with the raw markdown text starting with ---."
+)
+
+
+def get_last_session_transcript() -> Optional[str]:
+    """Read the most recent chat session transcript from Superpowers DB or Claude history."""
+    db_path = Path.home() / ".config" / "superpowers" / "conversation-index" / "db.sqlite"
+    if db_path.exists():
+        try:
+            import sqlite3
+            with sqlite3.connect(str(db_path)) as conn:
+                cursor = conn.cursor()
+                cursor.execute(
+                    "SELECT session_id, max(timestamp) FROM exchanges "
+                    "GROUP BY session_id ORDER BY max(timestamp) DESC LIMIT 1"
+                )
+                row = cursor.fetchone()
+                if row and row[0]:
+                    session_id = row[0]
+                    cursor.execute(
+                        "SELECT user_message, assistant_message FROM exchanges "
+                        "WHERE session_id = ? ORDER BY timestamp ASC",
+                        (session_id,),
+                    )
+                    rows = cursor.fetchall()
+                    if rows:
+                        transcript = []
+                        for user, assistant in rows:
+                            transcript.append(f"User: {user}")
+                            transcript.append(f"Assistant: {assistant}")
+                        return "\n\n".join(transcript)
+        except Exception as e:
+            logger.warning("Failed to read from Superpowers DB: %s", e)
+
+    history_file = Path.home() / ".claude" / "history.jsonl"
+    if history_file.exists():
+        try:
+            lines = history_file.read_text().splitlines()
+            if lines:
+                last_line_data = json.loads(lines[-1])
+                session_id = last_line_data.get("sessionId")
+                if session_id:
+                    transcript = []
+                    for line in lines:
+                        try:
+                            data = json.loads(line)
+                            if data.get("sessionId") == session_id and data.get("display"):
+                                transcript.append(f"User: {data['display']}")
+                        except Exception:
+                            continue
+                    if transcript:
+                        return "\n\n".join(transcript)
+        except Exception as e:
+            logger.warning("Failed to read from Claude history log: %s", e)
+
+    return None
+
+
+def call_llm_extraction(api_key: str, transcript: str) -> str:
+    """Call OpenRouter API to extract a skill from a transcript."""
+    data = {
+        "model": EXTRACT_MODEL,
+        "messages": [
+            {"role": "system", "content": _EXTRACT_SYSTEM_PROMPT},
+            {"role": "user", "content": f"Here is the chat transcript:\n\n{transcript}\n\nApply the instructions and extract the skill."},
+        ],
+        "temperature": 0.2,
+    }
+    headers = {
+        "Content-Type": "application/json",
+        "Authorization": f"Bearer {api_key}",
+    }
+    req = urllib.request.Request(
+        EXTRACT_API_BASE,
+        data=json.dumps(data).encode("utf-8"),
+        headers=headers,
+        method="POST",
+    )
+    try:
+        with urllib.request.urlopen(req, timeout=90) as response:
+            res_data = json.loads(response.read().decode("utf-8"))
+            return res_data["choices"][0]["message"]["content"]
+    except Exception as e:
+        raise RuntimeError(f"OpenRouter API call failed: {e}")
+
+
+def extract_skill_name_from_md(md_content: str) -> str:
+    """Extract and slugify the skill name from markdown content."""
+    fm, _ = parse_frontmatter(md_content)
+    name = fm.get("name")
+    if name:
+        try:
+            return slugify(name)
+        except ValueError:
+            pass
+    return "extracted-skill"
+
+
+# ── Agent MCP Registration ──────────────────────────────────────────────────
+
+AGENT_REGISTRY: dict[str, dict[str, Any]] = {
+    "cursor": {
+        "label": "Cursor",
+        "format": "mcp-json",
+        "paths": {
+            "darwin": "~/.cursor/mcp.json",
+            "linux": "~/.cursor/mcp.json",
+            "windows": "%USERPROFILE%\\.cursor\\mcp.json",
+        },
+        "servers_key": "mcpServers",
+    },
+    "claude-code": {
+        "label": "Claude Code",
+        "format": "mcp-json",
+        "paths": {
+            "darwin": "~/.claude/claude_desktop_config.json",
+            "linux": "~/.claude/claude_desktop_config.json",
+            "windows": "%USERPROFILE%\\.claude\\claude_desktop_config.json",
+        },
+        "servers_key": "mcpServers",
+    },
+    "devin": {
+        "label": "devin",
+        "format": "mcp-json",
+        "paths": {
+            "darwin": "~/.codeium/devin/mcp_config.json",
+            "linux": "~/.codeium/devin/mcp_config.json",
+            "windows": "%USERPROFILE%\\.codeium\\devin\\mcp_config.json",
+        },
+        "servers_key": "mcpServers",
+    },
+    "codex": {
+        "label": "Codex",
+        "format": "mcp-json",
+        "paths": {
+            "darwin": "~/.codex/mcp_config.json",
+            "linux": "~/.codex/mcp_config.json",
+            "windows": "%USERPROFILE%\\.codex\\mcp_config.json",
+        },
+        "servers_key": "mcpServers",
+    },
+}
+
+SERVER_ENTRY_NAME = "open-skills"
+
+
+def _resolve_agent_config_path(agent_id: str, system: Optional[str] = None) -> Optional[Path]:
+    """Resolve the config file path for an agent on the current OS."""
+    agent = AGENT_REGISTRY.get(agent_id)
+    if not agent:
+        return None
+    sys_name = system or platform.system().lower()
+    if sys_name == "darwin":
+        sys_key = "darwin"
+    elif sys_name.startswith("win"):
+        sys_key = "windows"
+    else:
+        sys_key = "linux"
+
+    raw_path = agent["paths"].get(sys_key)
+    if not raw_path:
+        return None
+
+    if sys_key == "windows":
+        home = os.environ.get("USERPROFILE", str(Path.home()))
+        raw_path = raw_path.replace("%USERPROFILE%", home)
+    else:
+        raw_path = os.path.expanduser(raw_path)
+
+    return Path(raw_path)
+
+
+def _build_server_entry(scope: str = "all") -> dict:
+    """Build the MCP server entry dict for the open-skills server."""
+    openskills_path = Path(__file__).parent.resolve() / "openskills.py"
+    return {
+        "command": "python3",
+        "args": [str(openskills_path), "mcp", "start", "--scope", scope],
+        "env": {},
+    }
+
+
+def _backup_file(path: Path) -> Optional[Path]:
+    """Create a timestamped backup of a file. Returns backup path or None if file doesn't exist."""
+    if not path.exists():
+        return None
+    ts = datetime.datetime.now().strftime("%Y%m%d%H%M%S")
+    backup = path.parent / f"{path.name}.bak-{ts}"
+    shutil.copy2(str(path), str(backup))
+    return backup
+
+
+def _read_mcp_json_config(path: Path) -> dict:
+    """Read and parse an mcp-json config file. Returns empty dict if missing."""
+    if not path.exists():
+        return {}
+    try:
+        return json.loads(path.read_text())
+    except (json.JSONDecodeError, OSError) as e:
+        raise ValueError(f"Failed to parse config file {path}: {e}")
+
+
+def _write_mcp_json_config(path: Path, config: dict) -> None:
+    """Write config as JSON, creating parent dirs."""
+    path.parent.mkdir(parents=True, exist_ok=True)
+    path.write_text(json.dumps(config, indent=2) + "\n")
+
+
+def _generate_diff(old_content: str, new_content: str) -> str:
+    """Generate a simple unified diff between old and new content."""
+    import difflib
+    old_lines = old_content.splitlines(keepends=True)
+    new_lines = new_content.splitlines(keepends=True)
+    diff = difflib.unified_diff(
+        old_lines, new_lines,
+        fromfile="before", tofile="after",
+    )
+    return "".join(diff)
+
+
+def detect_agents() -> list[dict[str, Any]]:
+    """Detect all registry agents and their install status.
+
+    Returns list of dicts: id, label, detected, installed, configPath, format.
+    """
+    results = []
+    for agent_id, agent in AGENT_REGISTRY.items():
+        config_path = _resolve_agent_config_path(agent_id)
+        detected = config_path is not None and config_path.exists()
+        installed = False
+        if detected:
+            try:
+                config = _read_mcp_json_config(config_path)
+                servers = config.get(agent["servers_key"], {})
+                installed = SERVER_ENTRY_NAME in servers
+            except Exception:
+                installed = False
+
+        results.append({
+            "id": agent_id,
+            "label": agent["label"],
+            "detected": detected,
+            "installed": installed,
+            "configPath": str(config_path) if config_path else "",
+            "format": agent["format"],
+        })
+    return results
+
+
+def connect_agent(
+    agent_id: str,
+    *,
+    scope: str = "all",
+    dry_run: bool = False,
+    config_path: Optional[str] = None,
+    format: str = "mcp-json",
+) -> dict[str, Any]:
+    """Register the Open Skills MCP server into an agent's config file.
+
+    Returns dict with action, path, diff (if dry_run).
+    """
+    if format != "mcp-json":
+        return {"action": "failed", "path": "", "error": f"Unsupported format: {format}"}
+
+    if config_path:
+        target_path = Path(config_path).expanduser()
+        servers_key = "mcpServers"
+    else:
+        agent = AGENT_REGISTRY.get(agent_id)
+        if not agent:
+            return {"action": "failed", "path": "", "error": f"Unknown agent: {agent_id}"}
+        target_path = _resolve_agent_config_path(agent_id)
+        if target_path is None:
+            return {"action": "failed", "path": "", "error": f"No config path for agent '{agent_id}' on this OS"}
+        servers_key = agent["servers_key"]
+
+    old_content = ""
+    if target_path.exists():
+        old_content = target_path.read_text()
+
+    try:
+        config = json.loads(old_content) if old_content else {}
+    except json.JSONDecodeError as e:
+        return {"action": "failed", "path": str(target_path), "error": f"Config file is not valid JSON: {e}"}
+
+    if not isinstance(config, dict):
+        return {"action": "failed", "path": str(target_path), "error": "Config file root is not a JSON object"}
+
+    servers = config.setdefault(servers_key, {})
+    entry = _build_server_entry(scope)
+
+    was_installed = SERVER_ENTRY_NAME in servers
+    action = "updated" if was_installed else "installed"
+
+    servers[SERVER_ENTRY_NAME] = entry
+
+    new_content = json.dumps(config, indent=2) + "\n"
+    diff = _generate_diff(old_content, new_content) if old_content else None
+
+    if dry_run:
+        return {"action": action, "path": str(target_path), "diff": diff or new_content}
+
+    backup = _backup_file(target_path)
+
+    _write_mcp_json_config(target_path, config)
+
+    try:
+        verify = json.loads(target_path.read_text())
+        if not isinstance(verify, dict):
+            raise ValueError("Verified content is not a dict")
+    except Exception as e:
+        if backup and backup.exists():
+            shutil.copy2(str(backup), str(target_path))
+        return {"action": "failed", "path": str(target_path), "error": f"Write validation failed, rolled back: {e}"}
+
+    logger.info("connect_agent: agent=%s action=%s path=%s", agent_id, action, target_path)
+    return {"action": action, "path": str(target_path), "diff": diff}
+
+
+def disconnect_agent(
+    agent_id: str,
+    *,
+    config_path: Optional[str] = None,
+    dry_run: bool = False,
+) -> dict[str, Any]:
+    """Remove the Open Skills MCP server entry from an agent's config file.
+
+    Returns dict with action, path, diff (if dry_run).
+    """
+    if config_path:
+        target_path = Path(config_path).expanduser()
+        servers_key = "mcpServers"
+    else:
+        agent = AGENT_REGISTRY.get(agent_id)
+        if not agent:
+            return {"action": "failed", "path": "", "error": f"Unknown agent: {agent_id}"}
+        target_path = _resolve_agent_config_path(agent_id)
+        if target_path is None:
+            return {"action": "failed", "path": "", "error": f"No config path for agent '{agent_id}' on this OS"}
+        servers_key = agent["servers_key"]
+
+    if not target_path.exists():
+        return {"action": "skipped", "path": str(target_path), "error": "Config file does not exist"}
+
+    old_content = target_path.read_text()
+
+    try:
+        config = json.loads(old_content)
+    except json.JSONDecodeError as e:
+        return {"action": "failed", "path": str(target_path), "error": f"Config file is not valid JSON: {e}"}
+
+    servers = config.get(servers_key, {})
+    if SERVER_ENTRY_NAME not in servers:
+        return {"action": "skipped", "path": str(target_path), "error": "Open Skills entry not found"}
+
+    del servers[SERVER_ENTRY_NAME]
+    if not servers:
+        del config[servers_key]
+
+    new_content = json.dumps(config, indent=2) + "\n"
+    diff = _generate_diff(old_content, new_content)
+
+    if dry_run:
+        return {"action": "uninstalled", "path": str(target_path), "diff": diff}
+
+    backup = _backup_file(target_path)
+
+    _write_mcp_json_config(target_path, config)
+
+    try:
+        verify = json.loads(target_path.read_text())
+        if not isinstance(verify, dict):
+            raise ValueError("Verified content is not a dict")
+    except Exception as e:
+        if backup and backup.exists():
+            shutil.copy2(str(backup), str(target_path))
+        return {"action": "failed", "path": str(target_path), "error": f"Write validation failed, rolled back: {e}"}
+
+    logger.info("disconnect_agent: agent=%s path=%s", agent_id, target_path)
+    return {"action": "uninstalled", "path": str(target_path), "diff": diff}

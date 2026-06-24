@@ -85,6 +85,7 @@
   .badge-green { background: rgba(63,185,80,0.15); color: var(--green); border: 1px solid rgba(63,185,80,0.3); }
   .badge-blue  { background: rgba(88,166,255,0.15); color: var(--accent); border: 1px solid rgba(88,166,255,0.3); }
   .badge-orange{ background: rgba(240,136,62,0.15); color: var(--accent-2); border: 1px solid rgba(240,136,62,0.3); }
+  .badge-purple{ background: rgba(188,140,255,0.15); color: var(--purple); border: 1px solid rgba(188,140,255,0.3); }
 
   /* ─── nav ─── */
   .nav {
@@ -299,8 +300,8 @@
     margin: 0 auto 24px;
     line-height: 1.6;
   }
-  .one-q .quote::before { content: '"'; color: var(--accent); font-size: 2rem; }
-  .one-q .quote::after { content: '"'; color: var(--accent); font-size: 2rem; }
+  .one-q .quote::before { content: '\201C'; color: var(--accent); font-size: 2rem; }
+  .one-q .quote::after { content: '\201D'; color: var(--accent); font-size: 2rem; }
 
   /* ─── debt cards ─── */
   .debt-grid {
@@ -362,6 +363,52 @@
   .terminal-output .dim { color: var(--text-dim); }
   .terminal-output .hi { color: var(--accent); }
 
+  /* ─── architecture diagram ─── */
+  .arch-diagram {
+    background: var(--bg-code);
+    border: 1px solid var(--border);
+    border-radius: 12px;
+    padding: 32px 24px;
+    margin: 24px 0;
+    font-family: var(--mono);
+    font-size: 0.82rem;
+    line-height: 1.9;
+    overflow-x: auto;
+    text-align: center;
+  }
+  .arch-diagram pre { margin: 0; display: inline-block; text-align: left; }
+  .arch-layer {
+    display: flex;
+    justify-content: center;
+    gap: 16px;
+    flex-wrap: wrap;
+    margin: 12px 0;
+  }
+  .arch-box {
+    background: var(--bg-card);
+    border: 1px solid var(--border);
+    border-radius: 8px;
+    padding: 12px 20px;
+    text-align: center;
+    min-width: 140px;
+  }
+  .arch-box.core { border-color: var(--accent); }
+  .arch-box.surface { border-color: var(--green); }
+  .arch-box.frontend { border-color: var(--purple); }
+  .arch-box.external { border-color: var(--accent-2); }
+  .arch-box .label { font-family: var(--mono); font-size: 0.78rem; color: var(--text-dim); margin-bottom: 4px; }
+  .arch-box .name { font-weight: 700; font-size: 0.95rem; }
+  .arch-box.core .name { color: var(--accent); }
+  .arch-box.surface .name { color: var(--green); }
+  .arch-box.frontend .name { color: var(--purple); }
+  .arch-box.external .name { color: var(--accent-2); }
+  .arch-arrow {
+    text-align: center;
+    color: var(--text-dim);
+    font-size: 1.2rem;
+    margin: 4px 0;
+  }
+
   /* ─── footer ─── */
   footer {
     padding: 40px 24px;
@@ -386,11 +433,12 @@
 <div class="hero">
   <h1>Open Skills</h1>
   <p class="tagline">The way you work should be yours, not rented back to you.</p>
-  <div class="version">Specification v2.0.0 · CLI v2.0.0</div>
+  <div class="version">Specification v3.2.0 &middot; CLI v3.2.0</div>
   <div class="badges">
-    <span class="badge badge-green">✓ Anatomy check validated</span>
-    <span class="badge badge-blue">Local MCP Server</span>
-    <span class="badge badge-orange">MIT licensed</span>
+    <span class="badge badge-green">85 skills validated</span>
+    <span class="badge badge-blue">CLI + MCP + REST + Web UI</span>
+    <span class="badge badge-purple">Semantic Recommend</span>
+    <span class="badge badge-orange">Agent Connect</span>
   </div>
 </div>
 
@@ -398,14 +446,19 @@
 <nav class="nav">
   <div class="nav-inner">
     <a href="#manifesto">Manifesto</a>
+    <a href="#architecture">Architecture</a>
     <a href="#scoping">Scoping</a>
     <a href="#anatomy">Anatomy</a>
     <a href="#checklist">Work Package</a>
     <a href="#one-question">One-Question Test</a>
     <a href="#cli">CLI Manual</a>
+    <a href="#recommend">Recommend</a>
+    <a href="#connect">Agent Connect</a>
     <a href="#runbooks">Runbooks</a>
     <a href="#mcp">MCP Server</a>
+    <a href="#webui">Web UI</a>
     <a href="#extractor">Extractor</a>
+    <a href="#api">API Reference</a>
   </div>
 </nav>
 
@@ -421,22 +474,22 @@
 
     <div class="card-grid">
       <div class="card">
-        <div class="icon">🔓</div>
+        <div class="icon">&#x1F513;</div>
         <h4>Not to Claude</h4>
         <p>Because it shipped the best skill format this quarter.</p>
       </div>
       <div class="card">
-        <div class="icon">🔧</div>
+        <div class="icon">&#x1F527;</div>
         <h4>Not to Codex</h4>
         <p>Because it gave you the best workbench.</p>
       </div>
       <div class="card">
-        <div class="icon">📝</div>
+        <div class="icon">&#x1F4DD;</div>
         <h4>Not to Cursor</h4>
         <p>Because the project started there.</p>
       </div>
       <div class="card">
-        <div class="icon">💬</div>
+        <div class="icon">&#x1F4AC;</div>
         <h4>Not to ChatGPT</h4>
         <p>Because the subscription was convenient.</p>
       </div>
@@ -452,10 +505,92 @@
   </div>
 </section>
 
-<!-- ═══ 2. SCOPING ═══ -->
+<!-- ═══ 2. ARCHITECTURE ═══ -->
+<section id="architecture">
+  <div class="container">
+    <h2><span class="num">02</span>Architecture</h2>
+    <p class="lead">Four access surfaces, one shared core. Every surface reads and writes the same skill and runbook files through <span class="inline-code">core.py</span>.</p>
+
+    <div class="arch-diagram">
+      <pre>
+                   ┌──────────────────────────────────────┐
+                   │         <span class="syn-k">React / Tailwind SPA</span>          │
+                   │   Skills &middot; Runbooks &middot; Extract &middot; Import   │
+                   └─────────────────┬────────────────────┘
+                                     │ HTTP
+                   ┌─────────────────▼────────────────────┐
+                   │        <span class="syn-f">FastAPI REST Server</span>            │
+                   │          server.py :8001              │
+                   └─────────────────┬────────────────────┘
+                                     │
+         ┌───────────────────────────┼───────────────────────────┐
+         │                           │                           │
+┌────────▼────────┐       ┌──────────▼──────────┐     ┌─────────▼─────────┐
+│  <span class="syn-s">CLI</span>             │       │  <span class="syn-s">core.py</span>            │     │  <span class="syn-s">MCP Server</span>        │
+│  openskills.py   │──────▶│  Shared Logic Hub   │◀────│  mcp_server.py    │
+│  init/validate/  │       │  validate/parse/    │     │  tools/resources/  │
+│  test/extract    │       │  match/runbook      │     │  prompts           │
+└──────────────────┘       └──────────┬──────────┘     └───────────────────┘
+                                      │
+                           ┌──────────▼──────────┐
+                           │  <span class="syn-y">File System</span>         │
+                           │  ~/.config/open-skills│
+                           │  .open-skills/        │
+                           └───────────────────────┘
+      </pre>
+    </div>
+
+    <div class="card-grid">
+      <div class="card">
+        <div class="icon">&#x2699;&#xFE0F;</div>
+        <h4>core.py</h4>
+        <p>Shared logic hub: validation, frontmatter parsing, trigger matching, runbook state machine, skill resolution, semantic recommendation, agent MCP registration. Zero dependencies on any surface.</p>
+      </div>
+      <div class="card">
+        <div class="icon">&#x1F4BB;</div>
+        <h4>openskills.py (CLI)</h4>
+        <p>Shell interface for init, validate, test, list, add, extract, recommend, connect. Also contains the LLM extraction pipeline via OpenRouter.</p>
+      </div>
+      <div class="card">
+        <div class="icon">&#x1F310;</div>
+        <h4>server.py (REST API)</h4>
+        <p>FastAPI backend wrapping core.py as REST endpoints. Serves the React SPA. Supports optional token authentication.</p>
+      </div>
+      <div class="card">
+        <div class="icon">&#x1F50C;</div>
+        <h4>mcp_server.py (MCP)</h4>
+        <p>Model Context Protocol server exposing skills as tools, resources, and prompts. Includes semantic skill recommendation and context-mode injection.</p>
+      </div>
+    </div>
+
+    <h3>Platform Adapters</h3>
+    <p>Each skill can have platform-specific adapter wrappers in its <span class="inline-code">adapters/</span> directory. Supported platforms:</p>
+    <div class="card-grid">
+      <div class="card">
+        <h4>Hermes</h4>
+        <p>hermes.md</p>
+      </div>
+      <div class="card">
+        <h4>Claude Code</h4>
+        <p>claude-code.md</p>
+      </div>
+      <div class="card">
+        <h4>Cursor</h4>
+        <p>cursor.md</p>
+      </div>
+      <div class="card">
+        <h4>Codex</h4>
+        <p>codex.md</p>
+      </div>
+    </div>
+    <p>Adapters are optional and auto-generated on export. The core <span class="inline-code">skill.md</span> remains platform-agnostic.</p>
+  </div>
+</section>
+
+<!-- ═══ 3. SCOPING ═══ -->
 <section id="scoping">
   <div class="container">
-    <h2><span class="num">02</span>The Scoping & Directories</h2>
+    <h2><span class="num">03</span>Scoping &amp; Directories</h2>
     <p class="lead">Predictable file hierarchies binding skills globally or locally to your repository.</p>
 
     <h3>Global Scope</h3>
@@ -465,7 +600,11 @@
 ├── <span class="dir">skills/</span>
 │   ├── <span class="dir">personal-voice/</span>
 │   │   ├── <span class="file">skill.md</span>
-│   │   └── <span class="file">voice-samples/</span>
+│   │   ├── <span class="dir">tests/</span>
+│   │   │   └── <span class="file">test_basic.py</span>
+│   │   └── <span class="dir">adapters/</span>
+│   │       ├── <span class="file">hermes.md</span>
+│   │       └── <span class="file">claude-code.md</span>
 │   └── <span class="dir">current-search/</span>
 │       └── <span class="file">skill.md</span>
 └── <span class="dir">runbooks/</span>
@@ -482,15 +621,20 @@ your-project-repo/.open-skills/
 │   └── <span class="dir">db-migration/</span>
 │       └── <span class="file">skill.md</span>
 └── <span class="dir">runbooks/</span>
-    └── <span class="file">release-day.md</span>
+    └── <span class="file">deploy-pipeline.md</span>
+    </div>
+
+    <div class="callout">
+      <div class="title">Shadowing</div>
+      <p>When a local skill has the same name as a global skill, the local version takes precedence. The Web UI flags shadowed skills so you always know which version is active.</p>
     </div>
   </div>
 </section>
 
-<!-- ═══ 3. ANATOMY ═══ -->
+<!-- ═══ 4. ANATOMY ═══ -->
 <section id="anatomy">
   <div class="container">
-    <h2><span class="num">03</span>Anatomy of a skill.md File</h2>
+    <h2><span class="num">04</span>Anatomy of a skill.md File</h2>
     <p class="lead">A skill is a markdown file parsed by code. It uses a strict YAML frontmatter block to define boundaries, required tools, and triggers.</p>
 
     <div class="code-block">
@@ -498,6 +642,7 @@ your-project-repo/.open-skills/
       <pre><span class="syn-p">---</span>
 <span class="syn-y">name</span><span class="syn-p">:</span> <span class="syn-s">browser-qa</span>
 <span class="syn-y">description</span><span class="syn-p">:</span> <span class="syn-s">Verifies frontend changes across responsive breakpoints.</span>
+<span class="syn-y">version</span><span class="syn-p">:</span> <span class="syn-s">1.0.0</span>
 <span class="syn-y">triggers</span><span class="syn-p">:</span>
   <span class="syn-p">-</span> <span class="syn-s">"on UI change"</span>
   <span class="syn-p">-</span> <span class="syn-s">"before calling a layout task done"</span>
@@ -508,6 +653,8 @@ your-project-repo/.open-skills/
   <span class="syn-p">-</span> <span class="syn-s">headless-browser</span>
   <span class="syn-p">-</span> <span class="syn-s">terminal</span>
 <span class="syn-y">output_format</span><span class="syn-p">:</span> <span class="syn-s">"QA_EVIDENCE.md"</span>
+<span class="syn-y">disable-model-invocation</span><span class="syn-p">:</span> <span class="syn-s">false</span>
+<span class="syn-y">user-invocable</span><span class="syn-p">:</span> <span class="syn-s">true</span>
 <span class="syn-p">---</span>
 
 <span class="syn-k">## Objective</span>
@@ -518,26 +665,69 @@ Ensure the active route renders correctly on desktop and mobile without runtime 
 2. Open the browser tool and navigate to the modified routes.
 3. Change viewport to 375x812 (Mobile) and inspect for overlapping text or broken layouts.
 
+<span class="syn-k">## Pitfalls</span>
+- Do not rely on cached screenshots &mdash; always capture fresh.
+- Mobile Safari and Chrome render differently; test both if possible.
+
 <span class="syn-k">## Verification Contract (NON-NEGOTIABLE)</span>
 Your job is NOT done until you provide:
 - [ ] Console logs showing zero uncaught exceptions.
 - [ ] Saved screenshots of both Desktop and Mobile views in `./qa-artifacts/`.</pre>
     </div>
 
+    <h3>Required Frontmatter Fields</h3>
+    <div class="table-wrap">
+      <table>
+        <thead>
+          <tr><th>Field</th><th>Type</th><th>Description</th></tr>
+        </thead>
+        <tbody>
+          <tr><td><span class="inline-code">name</span></td><td>string</td><td>Slugified skill name (must match directory name)</td></tr>
+          <tr><td><span class="inline-code">description</span></td><td>string</td><td>One-line description of the skill</td></tr>
+          <tr><td><span class="inline-code">version</span></td><td>string</td><td>Semantic version (e.g. 1.0.0)</td></tr>
+          <tr><td><span class="inline-code">triggers</span></td><td>list</td><td>Keywords or phrases that activate the skill</td></tr>
+          <tr><td><span class="inline-code">boundaries</span></td><td>list</td><td>Hard constraints the skill must never violate</td></tr>
+          <tr><td><span class="inline-code">required_tools</span></td><td>list</td><td>Tools/APIs the skill depends on</td></tr>
+          <tr><td><span class="inline-code">output_format</span></td><td>string</td><td>Expected output filename or format</td></tr>
+        </tbody>
+      </table>
+    </div>
+
     <h3>Required Sections</h3>
     <ul>
-      <li><strong>YAML Frontmatter</strong> — Slugified name, description, trigger keywords, strict boundaries, required tools, and output format.</li>
-      <li><strong>## Objective</strong> — High-level description of what the procedure accomplishes.</li>
-      <li><strong>## Procedure</strong> — Step-by-step instructions.</li>
-      <li><strong>## Verification Contract (NON-NEGOTIABLE)</strong> — Markdown checklist that must be filled before completion.</li>
+      <li><strong>## Objective</strong> &mdash; High-level description of what the procedure accomplishes.</li>
+      <li><strong>## Procedure</strong> &mdash; Step-by-step instructions an agent can follow.</li>
+      <li><strong>## Verification Contract (NON-NEGOTIABLE)</strong> &mdash; Markdown checklist that must be filled before completion.</li>
     </ul>
+
+    <h3>Optional Sections</h3>
+    <ul>
+      <li><strong>## Pitfalls</strong> &mdash; Common failure modes and how to avoid them.</li>
+    </ul>
+
+    <h3>Package Structure</h3>
+    <div class="tree">
+my-skill/
+├── <span class="file">skill.md</span>              <span class="comment"># The procedure (required)</span>
+├── <span class="dir">tests/</span>                <span class="comment"># Automated checks</span>
+│   └── <span class="file">test_basic.py</span>
+├── <span class="dir">adapters/</span>             <span class="comment"># Platform wrappers (auto-generated)</span>
+│   ├── <span class="file">hermes.md</span>
+│   ├── <span class="file">claude-code.md</span>
+│   ├── <span class="file">cursor.md</span>
+│   ├── <span class="file">codex.md</span>
+│   └── <span class="file">generic.md</span>
+├── <span class="dir">scripts/</span>              <span class="comment"># Helper scripts (optional)</span>
+├── <span class="dir">templates/</span>            <span class="comment"># File templates (optional)</span>
+└── <span class="dir">references/</span>           <span class="comment"># Reference materials (optional)</span>
+    </div>
   </div>
 </section>
 
-<!-- ═══ 4. WORK PACKAGE CHECKLIST ═══ -->
+<!-- ═══ 5. WORK PACKAGE CHECKLIST ═══ -->
 <section id="checklist">
   <div class="container">
-    <h2><span class="num">04</span>The Work Package Checklist</h2>
+    <h2><span class="num">05</span>The Work Package Checklist</h2>
     <p class="lead">Eight checks that separate a skill you actually own from a lucky setup you happened to land in one app.</p>
 
     <ol class="checklist">
@@ -593,71 +783,274 @@ Your job is NOT done until you provide:
   </div>
 </section>
 
-<!-- ═══ 5. ONE-QUESTION TEST ═══ -->
+<!-- ═══ 6. ONE-QUESTION TEST ═══ -->
 <section id="one-question">
   <div class="container">
-    <h2><span class="num">05</span>The One-Question Test</h2>
+    <h2><span class="num">06</span>The One-Question Test</h2>
     <div class="one-q">
       <p class="quote">If I deleted this app tomorrow, how long would it take me to rebuild this workflow somewhere else?</p>
     </div>
   </div>
 </section>
 
-<!-- ═══ 6. CLI MANUAL ═══ -->
+<!-- ═══ 7. CLI MANUAL ═══ -->
 <section id="cli">
   <div class="container">
-    <h2><span class="num">06</span>CLI Usage Manual</h2>
+    <h2><span class="num">07</span>CLI Usage Manual</h2>
     <p class="lead">Control your scoped workspace from the shell.</p>
 
     <h3>Initializing Skills</h3>
     <div class="code-block">
-      <pre><span class="syn-f">$</span> python3 openskills.py init browser-qa --local
-<span class="ok">✓</span> Created Open Skill 'browser-qa' at /home/bsdev/open-skills/.open-skills/skills/browser-qa/skill.md</pre>
+      <pre><span class="syn-f">$</span> openskills init browser-qa --local
+<span class="ok">&#x2713;</span> Created Open Skill 'browser-qa' at .open-skills/skills/browser-qa/skill.md</pre>
     </div>
 
     <h3>Validating Anatomy</h3>
     <div class="code-block">
-      <pre><span class="syn-f">$</span> python3 openskills.py validate browser-qa
+      <pre><span class="syn-f">$</span> openskills validate browser-qa
 
-Open Skills Validation — skill.md (browser-qa/)
+Open Skills Validation &mdash; skill.md (browser-qa/)
 
-  [✓] Frontmatter block exists
-  [✓] Frontmatter field 'name' declared: 'browser-qa'
-  [✓] Frontmatter field 'description' declared: 'Verifies frontend changes...'
-  [✓] Frontmatter field 'triggers' declared (2 items)
-  [✓] Frontmatter field 'boundaries' declared (2 items)
-  [✓] Frontmatter field 'required_tools' declared (2 items)
-  [✓] Frontmatter field 'output_format' declared: 'QA_EVIDENCE.md'
-  [✓] Section '## Objective' exists
-  [✓] Section '## Procedure' exists
-  [✓] Section '## Verification Contract (NON-NEGOTIABLE)' exists
-  [✓] Verification Contract has checklist items (2 found)
+  [&#x2713;] Frontmatter block exists
+  [&#x2713;] Frontmatter field 'name' declared: 'browser-qa'
+  [&#x2713;] Frontmatter field 'description' declared: 'Verifies frontend changes...'
+  [&#x2713;] Frontmatter field 'triggers' declared (2 items)
+  [&#x2713;] Frontmatter field 'boundaries' declared (2 items)
+  [&#x2713;] Frontmatter field 'required_tools' declared (2 items)
+  [&#x2713;] Frontmatter field 'output_format' declared: 'QA_EVIDENCE.md'
+  [&#x2713;] Section '## Objective' exists
+  [&#x2713;] Section '## Procedure' exists
+  [&#x2713;] Section '## Verification Contract (NON-NEGOTIABLE)' exists
+  [&#x2713;] Verification Contract has checklist items (2 found)
+  [&#x2713;] Platform-agnostic body (no vendor-specific markers)
 
   Validation result: 0 errors found.
-<span class="ok">✓</span> This is a valid Open Skill.</pre>
+<span class="ok">&#x2713;</span> This is a valid Open Skill.</pre>
     </div>
 
     <h3>Listing All Scopes</h3>
     <div class="code-block">
-      <pre><span class="syn-f">$</span> python3 openskills.py list
-Found 2 Open Skill(s):
+      <pre><span class="syn-f">$</span> openskills list
+Found 85 Open Skill(s):
 
   browser-qa [Local]
-    Path: /home/bsdev/open-skills/.open-skills/skills/browser-qa/skill.md
+    Path: .open-skills/skills/browser-qa/skill.md
     Description: Verifies frontend changes across responsive breakpoints.
-  
+
   personal-voice [Global]
-    Path: /home/bsdev/.config/open-skills/skills/personal-voice/skill.md
+    Path: ~/.config/open-skills/skills/personal-voice/skill.md
     Description: Draft matching structural voice standards.</pre>
+    </div>
+
+    <h3>Importing Skills</h3>
+    <div class="code-block">
+      <pre><span class="syn-c"># Import from a local directory</span>
+<span class="syn-f">$</span> openskills add /path/to/skill-dir --global
+
+<span class="syn-c"># Import from a GitHub repository (v3.1.0+)</span>
+<span class="syn-c"># Supports full repos, subdirectories, and specific branches</span>
+<span class="syn-f">$</span> curl -X POST http://localhost:8001/api/skills/import-github \
+  -H "Content-Type: application/json" \
+  -d '{"url": "https://github.com/user/repo/tree/main/skills/my-skill", "scope": "global"}'</pre>
+    </div>
+
+    <h3>Running Tests</h3>
+    <div class="code-block">
+      <pre><span class="syn-f">$</span> openskills test browser-qa
+Running tests for browser-qa...
+<span class="ok">&#x2713;</span> test_frontmatter_parses
+<span class="ok">&#x2713;</span> test_platform_agnostic
+<span class="ok">&#x2713;</span> test_decision_logic
+<span class="ok">&#x2713;</span> All tests passed.</pre>
+    </div>
+
+    <h3>Recommending Skills</h3>
+    <div class="code-block">
+      <pre><span class="syn-f">$</span> openskills recommend "deploy a Next.js app to Vercel"
+
+Top 3 skill(s) for: deploy a Next.js app to Vercel
+(keyword match, 12ms)
+
+  1. vercel-deploy [Global] &mdash; score: 0.00
+     keyword match (degraded mode)
+     Triggers: deploy to vercel, next.js deployment
+
+  2. frontend-checklist [Global] &mdash; score: 0.00
+     keyword match (degraded mode)
+     Triggers: before deploying, frontend review
+
+  3. browser-qa [Local] &mdash; score: 0.00
+     keyword match (degraded mode)
+     Triggers: on UI change, before calling a layout task done</pre>
+    </div>
+
+    <h3>Connecting Agents</h3>
+    <div class="code-block">
+      <pre><span class="syn-c"># List detected agents and their install status</span>
+<span class="syn-f">$</span> openskills connect --list
+
+Detected Agents (4 registered):
+
+  Agent            Detected   Installed  Config Path
+  ---------------- ---------- ---------- ----------------------------------------
+  Cursor           &#x2713;          &#x2713;          /home/user/.cursor/mcp.json
+  Claude Code      &#x2713;          &#x2713;          /home/user/.claude/claude_desktop_config.json
+  devin            &#x2713;          &#x2713;          /home/user/.codeium/devin/mcp_config.json
+  Codex            &#x2713;          &#x2713;          /home/user/.codex/mcp_config.json
+
+<span class="syn-c"># Register into specific agents</span>
+<span class="syn-f">$</span> openskills connect --cursor --codex
+<span class="ok">&#x2713;</span> cursor: installed at /home/user/.cursor/mcp.json
+<span class="ok">&#x2713;</span> codex: installed at /home/user/.codex/mcp_config.json
+
+<span class="syn-c"># Preview changes without writing</span>
+<span class="syn-f">$</span> openskills connect --all --dry-run
+
+<span class="syn-c"># Remove the Open Skills entry</span>
+<span class="syn-f">$</span> openskills connect --cursor --uninstall
+<span class="ok">&#x2713;</span> cursor: uninstalled at /home/user/.cursor/mcp.json</pre>
     </div>
   </div>
 </section>
 
-<!-- ═══ 7. RUNBOOKS ═══ -->
+<!-- &#9484;&#9488; 7b. SKILL RECOMMENDATION &#9484;&#9488; -->
+<section id="recommend">
+  <div class="container">
+    <h2><span class="num">07b</span>Semantic Skill Recommendation</h2>
+    <p class="lead">Rank skills by relevance to a task using a two-stage pipeline: deterministic pre-filter then LLM-backed semantic ranking.</p>
+
+    <h3>How It Works</h3>
+    <ol>
+      <li><strong>Deterministic pre-filter</strong> &mdash; Trigger matching + keyword overlap on skill name and description. Produces a shortlist of up to <span class="inline-code">RECOMMEND_CANDIDATE_CAP</span> (default 20) candidates.</li>
+      <li><strong>LLM ranking</strong> &mdash; Sends compact metadata (name, description, triggers) to an LLM which returns a JSON array of ranked results with scores (0.0&ndash;1.0) and short reasons.</li>
+    </ol>
+
+    <div class="callout">
+      <div class="title">Degraded Mode</div>
+      <p>If no <span class="inline-code">OPENROUTER_API_KEY</span> is available, or the LLM call fails or times out, the recommendation falls back to the deterministic pre-filter results with <span class="inline-code">llm_used: false</span>. Hallucinated skill names from the LLM are silently dropped.</p>
+    </div>
+
+    <h3>Access Surfaces</h3>
+    <div class="card-grid">
+      <div class="card">
+        <div class="icon">&#x1F4BB;</div>
+        <h4>CLI</h4>
+        <p><span class="inline-code">openskills recommend "your task"</span></p>
+      </div>
+      <div class="card">
+        <div class="icon">&#x1F50C;</div>
+        <h4>MCP Tool</h4>
+        <p><span class="inline-code">recommend_skills(query="...", limit=5)</span></p>
+      </div>
+      <div class="card">
+        <div class="icon">&#x1F310;</div>
+        <h4>REST API</h4>
+        <p><span class="inline-code">POST /api/skills/recommend</span></p>
+      </div>
+    </div>
+
+    <h3>Configuration</h3>
+    <div class="table-wrap">
+      <table>
+        <thead>
+          <tr><th>Variable</th><th>Default</th><th>Description</th></tr>
+        </thead>
+        <tbody>
+          <tr><td><span class="inline-code">OPENROUTER_API_KEY</span></td><td>&mdash;</td><td>Required for LLM ranking. Falls back to degraded mode if missing.</td></tr>
+          <tr><td><span class="inline-code">RECOMMEND_MODEL</span></td><td><span class="inline-code">deepseek/deepseek-v4-flash</span></td><td>Model for recommendation ranking.</td></tr>
+          <tr><td><span class="inline-code">RECOMMEND_API_BASE</span></td><td><span class="inline-code">https://openrouter.ai/api/v1/chat/completions</span></td><td>Completions endpoint for recommendation.</td></tr>
+          <tr><td><span class="inline-code">RECOMMEND_CANDIDATE_CAP</span></td><td><span class="inline-code">20</span></td><td>Pre-filter shortlist size.</td></tr>
+          <tr><td><span class="inline-code">RECOMMEND_TIMEOUT_MS</span></td><td><span class="inline-code">2000</span></td><td>LLM timeout for recommendation.</td></tr>
+          <tr><td><span class="inline-code">OPENSKILLS_CONTEXT_MODE</span></td><td><span class="inline-code">index</span></td><td>Context injection mode: <span class="inline-code">index</span>, <span class="inline-code">full</span>, or <span class="inline-code">directive_only</span>.</td></tr>
+        </tbody>
+      </table>
+    </div>
+
+    <h3>Context Injection Modes</h3>
+    <div class="table-wrap">
+      <table>
+        <thead>
+          <tr><th>Mode</th><th>Behavior</th></tr>
+        </thead>
+        <tbody>
+          <tr><td><span class="inline-code">index</span></td><td>Injects a directive to use <span class="inline-code">recommend_skills</span> plus a compact one-line-per-skill index. <strong>Default.</strong></td></tr>
+          <tr><td><span class="inline-code">full</span></td><td>Injects full skill details (legacy behavior). All frontmatter and body text.</td></tr>
+          <tr><td><span class="inline-code">directive_only</span></td><td>Injects only the directive to use <span class="inline-code">recommend_skills</span>. No skill listing.</td></tr>
+        </tbody>
+      </table>
+    </div>
+  </div>
+</section>
+
+<!-- &#9484;&#9488; 7c. AGENT MCP REGISTRATION &#9484;&#9488; -->
+<section id="connect">
+  <div class="container">
+    <h2><span class="num">07c</span>Agent MCP Registration (connect)</h2>
+    <p class="lead">Register the Open Skills MCP server into agent config files &mdash; idempotently, with backups and dry-run support.</p>
+
+    <h3>Supported Agents</h3>
+    <div class="card-grid">
+      <div class="card">
+        <div class="icon">&#x1F4BB;</div>
+        <h4>Cursor</h4>
+        <p><span class="inline-code">~/.cursor/mcp.json</span></p>
+      </div>
+      <div class="card">
+        <div class="icon">&#x1F4AC;</div>
+        <h4>Claude Code</h4>
+        <p><span class="inline-code">~/.claude/claude_desktop_config.json</span></p>
+      </div>
+      <div class="card">
+        <div class="icon">&#x2699;&#xFE0F;</div>
+        <h4>devin</h4>
+        <p><span class="inline-code">~/.codeium/devin/mcp_config.json</span></p>
+      </div>
+      <div class="card">
+        <div class="icon">&#x1F50C;</div>
+        <h4>Codex</h4>
+        <p><span class="inline-code">~/.codex/mcp_config.json</span></p>
+      </div>
+    </div>
+
+    <h3>CLI Options</h3>
+    <div class="table-wrap">
+      <table>
+        <thead>
+          <tr><th>Option</th><th>Description</th></tr>
+        </thead>
+        <tbody>
+          <tr><td><span class="inline-code">--list</span></td><td>Detect agents and show install status</td></tr>
+          <tr><td><span class="inline-code">--cursor</span></td><td>Register into Cursor</td></tr>
+          <tr><td><span class="inline-code">--claude-code</span></td><td>Register into Claude Code</td></tr>
+          <tr><td><span class="inline-code">--devin</span></td><td>Register into devin</td></tr>
+          <tr><td><span class="inline-code">--codex</span></td><td>Register into Codex</td></tr>
+          <tr><td><span class="inline-code">--all</span></td><td>Register into every detected agent</td></tr>
+          <tr><td><span class="inline-code">--target &lt;path&gt;</span></td><td>Register into a custom config path</td></tr>
+          <tr><td><span class="inline-code">--format &lt;fmt&gt;</span></td><td>Config format (default: mcp-json)</td></tr>
+          <tr><td><span class="inline-code">--scope &lt;scope&gt;</span></td><td>Skill scope: all, local, or global (default: all)</td></tr>
+          <tr><td><span class="inline-code">--dry-run</span></td><td>Preview changes without writing</td></tr>
+          <tr><td><span class="inline-code">--uninstall</span></td><td>Remove the Open Skills entry</td></tr>
+        </tbody>
+      </table>
+    </div>
+
+    <div class="callout success">
+      <div class="title">Idempotent &amp; Safe</div>
+      <p>Re-running <span class="inline-code">connect</span> updates the entry without disturbing other servers. A timestamped <span class="inline-code">.bak</span> backup is created before the first write to any file. Invalid writes are detected and rolled back from backup.</p>
+    </div>
+
+    <div class="callout warn">
+      <div class="title">Legacy Commands Deprecated</div>
+      <p>The <span class="inline-code">install</span> and <span class="inline-code">export</span> commands are legacy. Use <span class="inline-code">connect</span> for MCP server registration instead.</p>
+    </div>
+  </div>
+</section>
+
+<!-- ═══ 8. RUNBOOKS ═══ -->
 <section id="runbooks">
   <div class="container">
-    <h2><span class="num">07</span>Runbooks as Composition</h2>
-    <p class="lead">Runbooks chain primitive skills together. Instead of code, a runbook acts as a structural state-machine manifesto that instructs the agent how to pipe outputs from one skill to the next.</p>
+    <h2><span class="num">08</span>Runbooks as Composition</h2>
+    <p class="lead">Runbooks chain primitive skills together. A runbook is a structural state-machine that instructs the agent how to pipe outputs from one skill to the next.</p>
 
     <div class="table-wrap">
       <table>
@@ -665,74 +1058,235 @@ Found 2 Open Skill(s):
           <tr><th>Phase</th><th>Active Skill</th><th>Input</th><th>Expected Verified Output</th></tr>
         </thead>
         <tbody>
-          <tr><td>01</td><td>media-transcriber</td><td>Raw audio file</td><td>Verified .txt clean transcript</td></tr>
-          <tr><td>02</td><td>personal-voice</td><td>Clean transcript</td><td>Markdown draft matching structural voice standards</td></tr>
+          <tr><td>01</td><td>research-topic</td><td>Topic keyword</td><td>Structured research notes</td></tr>
+          <tr><td>02</td><td>personal-voice</td><td>Research notes</td><td>Markdown draft matching voice standards</td></tr>
           <tr><td>03</td><td>browser-qa</td><td>Local deployment route</td><td>Screenshot artifacts + zero console errors</td></tr>
         </tbody>
       </table>
     </div>
 
-    <h3>CLI runbook Commands</h3>
+    <h3>CLI Runbook Commands</h3>
     <div class="code-block">
-      <pre><span class="syn-c"># Start execution of a runbook phase list</span>
-<span class="syn-f">$</span> python3 openskills.py runbook start release-day
-<span class="ok">✓</span> Started runbook 'release-day' with 3 phases. Active phase: 01.
+      <pre><span class="syn-c"># List all runbooks (local + global)</span>
+<span class="syn-f">$</span> openskills runbook list
 
-<span class="syn-c"># Check execution status (updates are written to local .runbook-state)</span>
-<span class="syn-f">$</span> python3 openskills.py runbook status
+<span class="syn-c"># Start a runbook state tracker</span>
+<span class="syn-f">$</span> openskills runbook start deploy-pipeline
+<span class="ok">&#x2713;</span> Started runbook 'deploy-pipeline' with 3 phases. Active phase: 01.
 
-Active Runbook: release-day
-Status Updated: 2026-06-21T21:43:48
+<span class="syn-c"># Check execution status</span>
+<span class="syn-f">$</span> openskills runbook status
 
-Phase  | Active Skill         | Input                     | Expected Output                     | Status    
+Active Runbook: deploy-pipeline
+Status Updated: 2026-06-23T21:43:48
+
+Phase  | Active Skill         | Input                     | Expected Output                     | Status
 --------------------------------------------------------------------------------------------------------------
-▶ 01   | media-transcriber    | Raw audio file            | Verified .txt clean transcript      | active    
-  02   | personal-voice       | Clean transcript          | Markdown draft matching voice       | pending   
-  03   | browser-qa           | Local deployment route    | Screenshot artifacts + zero errors  | pending   
+&#x25B6; 01   | research-topic       | Topic keyword             | Structured research notes           | active
+  02   | personal-voice       | Research notes            | Markdown draft matching voice       | pending
+  03   | browser-qa           | Local deployment route    | Screenshot artifacts + zero errors  | pending
 
-<span class="syn-c"># Advance to the next phase</span>
-<span class="syn-f">$</span> python3 openskills.py runbook next
-<span class="ok">✓</span> Phase 01 marked completed. Advanced to Phase 02: personal-voice</pre>
+<span class="syn-c"># Advance / revert / reset</span>
+<span class="syn-f">$</span> openskills runbook next
+<span class="syn-f">$</span> openskills runbook prev
+<span class="syn-f">$</span> openskills runbook reset</pre>
     </div>
+
+    <h3>Creating Runbooks via Web UI</h3>
+    <p>The Web UI provides a visual runbook composer where you can name a runbook, pick a scope, add phases with a skill dropdown picker, reorder phases, and specify input/output descriptions for each phase.</p>
   </div>
 </section>
 
-<!-- ═══ 8. MCP SERVER ═══ -->
+<!-- ═══ 9. MCP SERVER ═══ -->
 <section id="mcp">
   <div class="container">
-    <h2><span class="num">08</span>The Model Context Protocol (MCP) Server</h2>
+    <h2><span class="num">09</span>The Model Context Protocol (MCP) Server</h2>
     <p class="lead">Expose your skills and runbooks dynamically to Cursor, Claude Code, and Codex.</p>
-    
+
     <p>A local background process reads your local and global directories and exposes them to any active agent session. Exposes the following capabilities:</p>
-    
+
     <ul>
-      <li><strong>Prompts (<span class="inline-code">open-skills-context</span>)</strong> — Feeds the active procedures and structures directly into the system prompt context on agent boot up.</li>
-      <li><strong>Tools (<span class="inline-code">check_triggers</span>)</strong> — Monitores the user's queries. If the query matches the triggers defined in the skill (e.g. "landing page changes"), it suggests or injects the appropriate skill.</li>
-      <li><strong>Resources (<span class="inline-code">open-skills://skills/local/{name}</span>)</strong> — Exposes the raw markdown files directly as inspectable resources.</li>
+      <li><strong>Prompts (<span class="inline-code">open-skills-context</span>)</strong> &mdash; Injects skill context into the agent system prompt. Supports <span class="inline-code">OPENSKILLS_CONTEXT_MODE=index|full|directive_only</span> (default: <span class="inline-code">index</span> &mdash; directive + compact skill index).</li>
+      <li><strong>Tools</strong> &mdash; <span class="inline-code">recommend_skills</span>, <span class="inline-code">check_triggers</span>, <span class="inline-code">list_skills</span>, <span class="inline-code">get_skill</span>, <span class="inline-code">get_runbook_state</span>, <span class="inline-code">advance_runbook</span> for programmatic access.</li>
+      <li><strong>Resources</strong> &mdash; <span class="inline-code">open-skills://skills/local/{name}</span> and <span class="inline-code">open-skills://skills/global/{name}</span> expose the raw markdown files as inspectable resources.</li>
     </ul>
 
     <div class="code-block">
       <div class="label">Launch MCP Server</div>
-      <pre><span class="syn-f">$</span> python3 openskills.py mcp start
-Starting Open Skills MCP Server...</pre>
+      <pre><span class="syn-f">$</span> openskills mcp start
+Starting Open Skills MCP Server...
+Registered 5 tools, 2 resource templates, 1 prompt</pre>
+    </div>
+
+    <div class="callout">
+      <div class="title">Trigger Monitoring</div>
+      <p>The <span class="inline-code">check_triggers</span> tool scans user queries for keyword overlap against skill triggers to automatically suggest injecting relevant skills into the agent context.</p>
+    </div>
+
+    <div class="callout success">
+      <div class="title">Semantic Recommendation</div>
+      <p>The <span class="inline-code">recommend_skills</span> tool ranks skills by relevance to a task query using LLM-backed semantic matching with a deterministic fallback. Call it before starting a task instead of listing all skills.</p>
     </div>
   </div>
 </section>
 
-<!-- ═══ 9. EXTRACTOR ═══ -->
+<!-- ═══ 10. WEB UI ═══ -->
+<section id="webui">
+  <div class="container">
+    <h2><span class="num">10</span>Web UI</h2>
+    <p class="lead">A full browser interface for managing skills and runbooks. Built with React 19, React Router 7, TanStack Query 5, and Tailwind CSS 4.</p>
+
+    <div class="card-grid">
+      <div class="card">
+        <div class="icon">&#x1F4DA;</div>
+        <h4>Skills Browser</h4>
+        <p>Browse all local and global skills. View frontmatter, file trees, and validation status at a glance.</p>
+      </div>
+      <div class="card">
+        <div class="icon">&#x270F;&#xFE0F;</div>
+        <h4>Skill Editor</h4>
+        <p>Edit frontmatter fields with a structured form. Modify the markdown body. Run validation inline and see LLM-suggested fixes.</p>
+      </div>
+      <div class="card">
+        <div class="icon">&#x1F4CB;</div>
+        <h4>Runbook Composer</h4>
+        <p>Create runbooks visually. Pick skills from a dropdown, define inputs/outputs, reorder phases, and track execution state.</p>
+      </div>
+      <div class="card">
+        <div class="icon">&#x1F4E5;</div>
+        <h4>GitHub Import</h4>
+        <p>Import skills directly from GitHub repositories. Supports full repos, subdirectories, and branch/tag references.</p>
+      </div>
+      <div class="card">
+        <div class="icon">&#x1F50C;</div>
+        <h4>Agent Setup</h4>
+        <p>Register the Open Skills MCP server into Cursor, Claude Code, devin, or Codex. Dry-run preview, manual target paths, and one-click connect/disconnect.</p>
+      </div>
+    </div>
+
+    <h3>Running the Web UI</h3>
+    <div class="code-block">
+      <pre><span class="syn-c"># Install frontend dependencies and build</span>
+<span class="syn-f">$</span> cd web && npm install && npm run build && cd ..
+
+<span class="syn-c"># Start the backend (serves API + built SPA)</span>
+<span class="syn-f">$</span> python3 server.py
+INFO:     Uvicorn running on http://0.0.0.0:8001
+
+<span class="syn-c"># Or for development (hot-reload)</span>
+<span class="syn-f">$</span> cd web && npm run dev       <span class="syn-c"># Vite dev server on :5174</span>
+<span class="syn-f">$</span> python3 server.py            <span class="syn-c"># API server on :8001</span></pre>
+    </div>
+
+    <h3>Authentication</h3>
+    <p>By default, the server runs without authentication (suitable for localhost). To enable shared-secret auth, set <span class="inline-code">OPENSKILLS_API_TOKEN</span>:</p>
+    <div class="code-block">
+      <pre><span class="syn-f">$</span> export OPENSKILLS_API_TOKEN=your-secret-token
+<span class="syn-f">$</span> python3 server.py</pre>
+    </div>
+    <p>When enabled, all API requests must include an <span class="inline-code">Authorization: Bearer &lt;token&gt;</span> header.</p>
+  </div>
+</section>
+
+<!-- ═══ 11. EXTRACTOR ═══ -->
 <section id="extractor">
   <div class="container">
-    <h2><span class="num">09</span>The Flywheel: session-to-skill Extractor</h2>
+    <h2><span class="num">11</span>The Flywheel: Session-to-Skill Extractor</h2>
     <p class="lead">Save brilliant workflows from disappearing in chat logs.</p>
-    <p>The extractor reads the latest chat session logs from your local tools (e.g. Claude Code's log files or Superpowers SQLite databases), builds a transcript, and passes it to a local/completions model to automatically extract repeatable technical procedures as Open Skills.</p>
+    <p>The extractor reads the latest chat session logs from your local tools (Claude Code history logs or Superpowers SQLite databases), builds a transcript, and passes it to DeepSeek V4 Flash via OpenRouter to automatically extract repeatable technical procedures as Open Skills.</p>
 
     <div class="code-block">
-      <pre><span class="syn-f">$</span> python3 openskills.py extract --last-session
+      <pre><span class="syn-f">$</span> openskills extract --last-session
 Retrieving latest session chat logs...
 Retrieved session log (length: 59026 characters).
-Calling OpenAI API to extract repeatable procedures...
-<span class="ok">✓</span> Extracted skill 'ai-chat-frontend-design' and wrote draft to: /home/bsdev/open-skills/.open-skills/skills/pending-review/ai-chat-frontend-design/skill.md
+Calling OpenRouter API to extract repeatable procedures...
+<span class="ok">&#x2713;</span> Extracted skill 'ai-chat-frontend-design' and wrote draft to:
+  .open-skills/skills/pending-review/ai-chat-frontend-design/skill.md
   You can now review, modify, and commit it.</pre>
+    </div>
+
+    <h3>Configuration</h3>
+    <div class="table-wrap">
+      <table>
+        <thead>
+          <tr><th>Variable</th><th>Default</th><th>Description</th></tr>
+        </thead>
+        <tbody>
+          <tr><td><span class="inline-code">OPENROUTER_API_KEY</span></td><td>&mdash;</td><td>Required for extract. OpenRouter API key.</td></tr>
+          <tr><td><span class="inline-code">EXTRACT_MODEL</span></td><td><span class="inline-code">deepseek/deepseek-v4-flash</span></td><td>Model to use for extraction.</td></tr>
+          <tr><td><span class="inline-code">EXTRACT_API_BASE</span></td><td><span class="inline-code">https://openrouter.ai/api/v1/chat/completions</span></td><td>OpenRouter completions endpoint.</td></tr>
+        </tbody>
+      </table>
+    </div>
+
+    <h3>LLM-Assisted Fix Suggestions</h3>
+    <p>When a skill fails validation, the Web UI can request an LLM-suggested fix via the <span class="inline-code">POST /api/skills/{name}/suggest-fix</span> endpoint. The fix is generated by the same DeepSeek model and returned as a corrected skill body you can review and apply.</p>
+  </div>
+</section>
+
+<!-- ═══ 12. API REFERENCE ═══ -->
+<section id="api">
+  <div class="container">
+    <h2><span class="num">12</span>REST API Reference</h2>
+    <p class="lead">Full endpoint list for the FastAPI backend at <span class="inline-code">server.py</span>.</p>
+
+    <h3>Skills</h3>
+    <div class="table-wrap">
+      <table>
+        <thead>
+          <tr><th>Method</th><th>Path</th><th>Description</th></tr>
+        </thead>
+        <tbody>
+          <tr><td>GET</td><td><span class="inline-code">/api/skills</span></td><td>List all skills (local + global) with shadowing info</td></tr>
+          <tr><td>GET</td><td><span class="inline-code">/api/skills/{name}</span></td><td>Get skill detail (frontmatter, body, files, scope)</td></tr>
+          <tr><td>POST</td><td><span class="inline-code">/api/skills</span></td><td>Create a new skill</td></tr>
+          <tr><td>PUT</td><td><span class="inline-code">/api/skills/{name}</span></td><td>Save skill (raw markdown)</td></tr>
+          <tr><td>PUT</td><td><span class="inline-code">/api/skills/{name}/structured</span></td><td>Save skill (structured frontmatter + body)</td></tr>
+          <tr><td>DELETE</td><td><span class="inline-code">/api/skills/{name}</span></td><td>Delete a skill</td></tr>
+          <tr><td>POST</td><td><span class="inline-code">/api/skills/{name}/validate</span></td><td>Validate a skill against the spec</td></tr>
+          <tr><td>POST</td><td><span class="inline-code">/api/skills/{name}/suggest-fix</span></td><td>Get LLM-suggested fix for validation errors</td></tr>
+          <tr><td>POST</td><td><span class="inline-code">/api/skills/add</span></td><td>Import a skill from a local directory</td></tr>
+          <tr><td>POST</td><td><span class="inline-code">/api/skills/import-github</span></td><td>Import a skill from a GitHub repository</td></tr>
+          <tr><td>POST</td><td><span class="inline-code">/api/skills/extract</span></td><td>Extract a skill from the latest chat session</td></tr>
+          <tr><td>POST</td><td><span class="inline-code">/api/skills/recommend</span></td><td>Recommend skills for a task query</td></tr>
+          <tr><td>GET</td><td><span class="inline-code">/api/skills/{name}/files</span></td><td>List files in a skill directory</td></tr>
+          <tr><td>GET</td><td><span class="inline-code">/api/skills/{name}/files/{path}</span></td><td>Read a file from a skill directory</td></tr>
+        </tbody>
+      </table>
+    </div>
+
+    <h3>Agent Registration</h3>
+    <div class="table-wrap">
+      <table>
+        <thead>
+          <tr><th>Method</th><th>Path</th><th>Description</th></tr>
+        </thead>
+        <tbody>
+          <tr><td>GET</td><td><span class="inline-code">/api/agents</span></td><td>List detected agents and install status</td></tr>
+          <tr><td>POST</td><td><span class="inline-code">/api/agents/{id}/connect</span></td><td>Register MCP server into an agent</td></tr>
+          <tr><td>POST</td><td><span class="inline-code">/api/agents/{id}/disconnect</span></td><td>Remove Open Skills entry from an agent</td></tr>
+          <tr><td>POST</td><td><span class="inline-code">/api/agents/custom/connect</span></td><td>Register into a custom config path</td></tr>
+        </tbody>
+      </table>
+    </div>
+
+    <h3>Runbooks</h3>
+    <div class="table-wrap">
+      <table>
+        <thead>
+          <tr><th>Method</th><th>Path</th><th>Description</th></tr>
+        </thead>
+        <tbody>
+          <tr><td>GET</td><td><span class="inline-code">/api/runbooks</span></td><td>List all runbooks (local + global)</td></tr>
+          <tr><td>POST</td><td><span class="inline-code">/api/runbooks</span></td><td>Create a new runbook</td></tr>
+          <tr><td>DELETE</td><td><span class="inline-code">/api/runbooks/{name}</span></td><td>Delete a runbook</td></tr>
+          <tr><td>GET</td><td><span class="inline-code">/api/runbooks/state</span></td><td>Get active runbook execution state</td></tr>
+          <tr><td>POST</td><td><span class="inline-code">/api/runbooks/{name}/start</span></td><td>Start a runbook</td></tr>
+          <tr><td>POST</td><td><span class="inline-code">/api/runbooks/advance</span></td><td>Advance to next phase</td></tr>
+          <tr><td>POST</td><td><span class="inline-code">/api/runbooks/prev</span></td><td>Revert to previous phase</td></tr>
+          <tr><td>POST</td><td><span class="inline-code">/api/runbooks/reset</span></td><td>Reset runbook state</td></tr>
+        </tbody>
+      </table>
     </div>
   </div>
 </section>
@@ -740,7 +1294,7 @@ Calling OpenAI API to extract repeatable procedures...
 <!-- ═══ FOOTER ═══ -->
 <footer>
   <div class="container">
-    <p><strong>Open Skills</strong> — Specification v2.0.0 · CLI v2.0.0 · MIT License</p>
+    <p><strong>Open Skills</strong> &mdash; Specification v3.2.0 &middot; CLI v3.2.0 &middot; MIT License</p>
     <p style="margin-top:8px;">Your skills belong to you. The format belongs to everyone.</p>
     <p style="margin-top:16px; font-style:italic;">The pain is already here, but so is the fix, and it is closer than it looks.<br>You do not need a new platform or a new subscription. You need to own the way you already work and make it move with you.</p>
   </div>

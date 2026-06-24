@@ -59,3 +59,36 @@ export interface RunbookState {
   phases?: RunbookPhase[]
   updated_at?: string
 }
+
+export interface Agent {
+  id: string
+  label: string
+  detected: boolean
+  installed: boolean
+  configPath: string
+  format: string
+}
+
+export interface AgentActionResponse {
+  action: string
+  path: string
+  diff?: string
+  error?: string
+}
+
+export interface RecommendResult {
+  query: string
+  llm_used: boolean
+  model: string | null
+  results: RecommendItem[]
+  candidate_count: number
+  elapsed_ms: number
+}
+
+export interface RecommendItem {
+  name: string
+  scope: string
+  score: number
+  reason: string
+  triggers: string[]
+}

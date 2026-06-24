@@ -5,6 +5,7 @@ Uses core.py for all shared logic (no duplication with the CLI).
 """
 import sys
 import json
+import os
 from pathlib import Path
 
 sys.path.append(str(Path(__file__).parent.resolve()))
@@ -85,31 +86,56 @@ def get_runbook_state_resource() -> str:
 
 @mcp.prompt("open-skills-context")
 def open_skills_context_prompt() -> str:
-    """Inject all active skills and procedures into the context."""
-    prompt_lines = [
-        "# AVAILABLE TECHNICAL PROCEDURES (OPEN SKILLS)",
-        "The following repeatable procedures are available in this environment. ",
-        "When performing tasks that match their objective or triggers, you MUST follow them.",
-        "",
-    ]
+    """Inject Open Skills context into the agent system prompt."""
+    mode = os.environ.get("OPENSKILLS_CONTEXT_MODE", "index")
 
     skills, _ = core.get_all_skills()
     skills = [s for s in skills if not s.get("disable_model_invocation", False)]
 
-    for s in skills:
-        prompt_lines.append(f"## Skill: {s['name']} ({s['scope']})")
-        prompt_lines.append(f"Description: {s['description']}")
-        if s["triggers"]:
-            prompt_lines.append(f"Triggers: {', '.join(s['triggers'])}")
-        if s["boundaries"]:
-            prompt_lines.append("Boundaries / Rules:")
-            for b in s["boundaries"]:
-                prompt_lines.append(f"  - {b}")
-        if s["required_tools"]:
-            prompt_lines.append(f"Required Tools: {', '.join(s['required_tools'])}")
-        prompt_lines.append("")
-        prompt_lines.append(s["body"])
-        prompt_lines.append("-" * 40)
+    if mode == "directive_only":
+        prompt_lines = [
+            "# AVAILABLE TECHNICAL PROCEDURES (OPEN SKILLS)",
+            "You have access to an Open Skills library via the `recommend_skills` tool.",
+            "**Before starting any non-trivial task, call `recommend_skills` with a short description of your objective.**",
+            "It returns the most relevant skills ranked by relevance. Load the chosen skill with `get_skill` and follow its procedure and verification contract.",
+            "Do not attempt to enumerate the full library; use the recommender.",
+            "",
+        ]
+    elif mode == "full":
+        prompt_lines = [
+            "# AVAILABLE TECHNICAL PROCEDURES (OPEN SKILLS)",
+            "The following repeatable procedures are available in this environment. ",
+            "When performing tasks that match their objective or triggers, you MUST follow them.",
+            "",
+        ]
+        for s in skills:
+            prompt_lines.append(f"## Skill: {s['name']} ({s['scope']})")
+            prompt_lines.append(f"Description: {s['description']}")
+            if s["triggers"]:
+                prompt_lines.append(f"Triggers: {', '.join(s['triggers'])}")
+            if s["boundaries"]:
+                prompt_lines.append("Boundaries / Rules:")
+                for b in s["boundaries"]:
+                    prompt_lines.append(f"  - {b}")
+            if s["required_tools"]:
+                prompt_lines.append(f"Required Tools: {', '.join(s['required_tools'])}")
+            prompt_lines.append("")
+            prompt_lines.append(s["body"])
+            prompt_lines.append("-" * 40)
+            prompt_lines.append("")
+    else:
+        prompt_lines = [
+            "# AVAILABLE TECHNICAL PROCEDURES (OPEN SKILLS)",
+            "You have access to an Open Skills library via the `recommend_skills` tool.",
+            "**Before starting any non-trivial task, call `recommend_skills` with a short description of your objective.**",
+            "It returns the most relevant skills ranked by relevance. Load the chosen skill with `get_skill` and follow its procedure and verification contract.",
+            "Do not attempt to enumerate the full library; use the recommender.",
+            "",
+            "## Skill Index",
+            "",
+        ]
+        for s in skills:
+            prompt_lines.append(f"- **{s['name']}** ({s['scope']}): {s.get('description', '')}")
         prompt_lines.append("")
 
     state = core.read_runbook_state()
@@ -128,6 +154,32 @@ def open_skills_context_prompt() -> str:
 
 
 # ── Tools ───────────────────────────────────────────────────────────────────
+
+@mcp.tool()
+def recommend_skills(query: str, limit: int = 5, scope: str = "all") -> str:
+    """Given a description of your current task or objective, returns a ranked list of the most relevant Open Skills to use, with relevance scores and short reasons. Call this BEFORE starting a task instead of listing all skills. After choosing, call get_skill to load the full skill."""
+    result = core.recommend_skills(query, scope=scope, limit=limit)
+    lines = []
+    if result["results"]:
+        lines.append(f"Top {len(result['results'])} skill(s) for: {query}")
+        if result.get("model"):
+            lines.append(f"(ranked by {result['model']}, {result['elapsed_ms']}ms)")
+        else:
+            lines.append(f"(keyword match, {result['elapsed_ms']}ms)")
+        lines.append("")
+        for i, r in enumerate(result["results"], 1):
+            lines.append(f"{i}. {r['name']} [{r['scope']}] — score: {r['score']:.2f}")
+            lines.append(f"   {r['reason']}")
+            if r.get("triggers"):
+                triggers_str = ", ".join(t if isinstance(t, str) else str(t) for t in r["triggers"])
+                lines.append(f"   Triggers: {triggers_str}")
+            lines.append("")
+    else:
+        lines.append(f"No skills found for: {query}")
+    lines.append("")
+    lines.append(json.dumps(result, indent=2))
+    return "\n".join(lines)
+
 
 @mcp.tool()
 def list_skills() -> str:

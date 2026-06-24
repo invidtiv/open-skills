@@ -14,7 +14,7 @@ from pathlib import Path
 from fastapi import FastAPI, HTTPException, Request, Response
 from fastapi.staticfiles import StaticFiles
 from fastapi.responses import FileResponse, JSONResponse
-from pydantic import BaseModel
+from pydantic import BaseModel, Field
 
 import core
 
@@ -25,15 +25,22 @@ app = FastAPI(title="Open Skills", version=core.VERSION)
 _API_TOKEN = os.environ.get("OPENSKILLS_API_TOKEN")
 
 
+_LOCALHOST_HOSTS = {"127.0.0.1", "::1", "localhost"}
+
+
 @app.middleware("http")
 async def auth_middleware(request: Request, call_next):
-    """Shared-secret auth. Skips for localhost if no token is configured."""
+    """Shared-secret auth. Localhost-only when no token is configured."""
     if _API_TOKEN:
         token = request.headers.get("Authorization", "")
         if token.startswith("Bearer "):
             token = token[7:]
         if token != _API_TOKEN:
             return Response(status_code=401, content='{"detail":"Unauthorized"}', media_type="application/json")
+    else:
+        client_host = request.client.host if request.client else None
+        if client_host not in _LOCALHOST_HOSTS:
+            return Response(status_code=403, content='{"detail":"Remote access requires OPENSKILLS_API_TOKEN"}', media_type="application/json")
     return await call_next(request)
 
 # ── Request/Response models ────────────────────────────────────────────────
@@ -57,6 +64,21 @@ class ImportGithubRequest(BaseModel):
     url: str
     scope: str = "global"
     subdir: str = ""
+
+class RecommendRequest(BaseModel):
+    query: str
+    limit: int = Field(default=5, ge=1, le=50)
+    scope: str = "all"
+
+class AgentConnectRequest(BaseModel):
+    scope: str = "all"
+    dryRun: bool = False
+
+class AgentCustomConnectRequest(BaseModel):
+    configPath: str
+    format: str = "mcp-json"
+    scope: str = "all"
+    dryRun: bool = False
 
 class ValidationCheck(BaseModel):
     label: str
@@ -179,6 +201,11 @@ def save_skill_structured(name: str, req: SaveStructuredSkillRequest):
 @app.delete("/api/skills/{name}")
 def delete_skill(name: str):
     skill_dir, _ = _resolve_or_404(name)
+    resolved = skill_dir.resolve()
+    local_root = core.get_local_dir().resolve()
+    global_root = core.get_global_dir().resolve()
+    if not (resolved.is_relative_to(local_root) or resolved.is_relative_to(global_root)):
+        raise HTTPException(403, "Cannot delete skills outside local or global scope directories")
     shutil.rmtree(skill_dir)
     return {"deleted": True, "name": name}
 
@@ -197,13 +224,13 @@ class SuggestFixRequest(BaseModel):
 
 @app.post("/api/skills/{name}/suggest-fix")
 def suggest_fix(name: str, req: SuggestFixRequest):
-    from openskills import get_api_key, EXTRACT_API_BASE, EXTRACT_MODEL
+    import json as _json
     import urllib.request
 
     _, skill_file = _resolve_or_404(name)
     content = skill_file.read_text()
 
-    api_key = get_api_key()
+    api_key = core.get_api_key()
     if not api_key:
         raise HTTPException(400, "No API key found. Set OPENROUTER_API_KEY.")
 
@@ -222,7 +249,7 @@ def suggest_fix(name: str, req: SuggestFixRequest):
     )
 
     data = {
-        "model": EXTRACT_MODEL,
+        "model": core.EXTRACT_MODEL,
         "messages": [
             {"role": "system", "content": system_prompt},
             {"role": "user", "content": (
@@ -239,15 +266,15 @@ def suggest_fix(name: str, req: SuggestFixRequest):
     }
 
     http_req = urllib.request.Request(
-        EXTRACT_API_BASE,
-        data=__import__("json").dumps(data).encode("utf-8"),
+        core.EXTRACT_API_BASE,
+        data=_json.dumps(data).encode("utf-8"),
         headers=headers,
         method="POST",
     )
 
     try:
         with urllib.request.urlopen(http_req, timeout=90) as response:
-            res_data = __import__("json").loads(response.read().decode("utf-8"))
+            res_data = _json.loads(response.read().decode("utf-8"))
             suggestion = res_data["choices"][0]["message"]["content"]
             suggestion = re.sub(r'\n*CRITICAL RULES:.*', '', suggestion, flags=re.DOTALL).rstrip() + "\n"
             suggestion = re.sub(r'^```\w*\n?', '', suggestion)
@@ -318,12 +345,18 @@ def _parse_github_url(url: str) -> tuple[str, str, str, str]:
     return owner, repo, branch, subdir
 
 
+_SAFE_GIT_REF_RE = re.compile(r'^[a-zA-Z0-9._/\-]+$')
+
+
 @app.post("/api/skills/import-github")
 def import_github(req: ImportGithubRequest):
     try:
         owner, repo, branch, url_subdir = _parse_github_url(req.url)
     except ValueError as e:
         raise HTTPException(400, str(e))
+
+    if branch and not _SAFE_GIT_REF_RE.match(branch):
+        raise HTTPException(400, f"Invalid branch name: {branch}")
 
     subdir = req.subdir or url_subdir
     clone_url = f"https://github.com/{owner}/{repo}.git"
@@ -332,7 +365,7 @@ def import_github(req: ImportGithubRequest):
         cmd = ["git", "clone", "--depth", "1"]
         if branch:
             cmd += ["--branch", branch]
-        cmd += [clone_url, tmp + "/repo"]
+        cmd += ["--", clone_url, tmp + "/repo"]
 
         result = subprocess.run(cmd, capture_output=True, text=True, timeout=60)
         if result.returncode != 0:
@@ -390,25 +423,23 @@ def import_github(req: ImportGithubRequest):
 
 @app.post("/api/skills/extract")
 def extract_skill():
-    from openskills import get_last_session_transcript, get_api_key, call_llm_completion, extract_skill_name_from_md
-
-    transcript = get_last_session_transcript()
+    transcript = core.get_last_session_transcript()
     if not transcript:
         raise HTTPException(400, "No recent chat session found")
 
-    api_key = get_api_key()
+    api_key = core.get_api_key()
     if not api_key:
         raise HTTPException(400, "No API key found. Set OPENROUTER_API_KEY.")
 
     try:
-        skill_content = call_llm_completion(api_key, transcript)
+        skill_content = core.call_llm_extraction(api_key, transcript)
     except RuntimeError as e:
         raise HTTPException(502, str(e))
     skill_content = re.sub(
         r'\n*CRITICAL RULES:.*', '', skill_content, flags=re.DOTALL,
     ).rstrip() + "\n"
 
-    name = extract_skill_name_from_md(skill_content)
+    name = core.extract_skill_name_from_md(skill_content)
     pending_dir = core.get_local_dir() / "skills" / "pending-review" / name
     pending_dir.mkdir(parents=True, exist_ok=True)
     (pending_dir / "skill.md").write_text(skill_content)
@@ -443,6 +474,51 @@ def read_skill_file(name: str, filepath: str):
         return {"path": filepath, "content": content}
     except UnicodeDecodeError:
         raise HTTPException(400, "Binary file — cannot read as text")
+
+
+# ── Skill Recommendation ───────────────────────────────────────────────────
+
+@app.post("/api/skills/recommend")
+def recommend_skills(req: RecommendRequest):
+    result = core.recommend_skills(req.query, scope=req.scope, limit=req.limit)
+    return result
+
+
+# ── Agent Registration endpoints ────────────────────────────────────────────
+
+@app.get("/api/agents")
+def list_agents():
+    return {"agents": core.detect_agents()}
+
+
+@app.post("/api/agents/{agent_id}/connect")
+def connect_agent_endpoint(agent_id: str, req: AgentConnectRequest):
+    result = core.connect_agent(agent_id, scope=req.scope, dry_run=req.dryRun)
+    if result["action"] == "failed":
+        raise HTTPException(400, result.get("error", "Connection failed"))
+    return result
+
+
+@app.post("/api/agents/{agent_id}/disconnect")
+def disconnect_agent_endpoint(agent_id: str):
+    result = core.disconnect_agent(agent_id)
+    if result["action"] == "failed":
+        raise HTTPException(400, result.get("error", "Disconnection failed"))
+    return result
+
+
+@app.post("/api/agents/custom/connect")
+def custom_connect_agent(req: AgentCustomConnectRequest):
+    result = core.connect_agent(
+        "custom",
+        scope=req.scope,
+        dry_run=req.dryRun,
+        config_path=req.configPath,
+        format=req.format,
+    )
+    if result["action"] == "failed":
+        raise HTTPException(400, result.get("error", "Connection failed"))
+    return result
 
 
 # ── Runbook endpoints ──────────────────────────────────────────────────────
@@ -509,9 +585,9 @@ class CreateRunbookRequest(BaseModel):
 
 @app.post("/api/runbooks")
 def create_runbook(req: CreateRunbookRequest):
-    safe = re.sub(r'[^a-z0-9-]', '-', req.name.lower().strip())
-    safe = re.sub(r'-+', '-', safe).strip('-')
-    if not safe:
+    try:
+        safe = core.slugify(req.name)
+    except ValueError:
         raise HTTPException(400, "Invalid runbook name")
 
     base_dir = core.get_local_dir() if req.scope == "local" else core.get_global_dir()
@@ -537,6 +613,11 @@ def delete_runbook(name: str):
     rb = core.resolve_runbook(name)
     if not rb:
         raise HTTPException(404, f"Runbook '{name}' not found")
+    resolved = rb.resolve()
+    local_root = core.get_local_dir().resolve()
+    global_root = core.get_global_dir().resolve()
+    if not (resolved.is_relative_to(local_root) or resolved.is_relative_to(global_root)):
+        raise HTTPException(403, "Cannot delete runbooks outside local or global scope directories")
     rb.unlink()
     return {"deleted": True, "name": name}
 

@@ -1,4 +1,4 @@
-import type { Skill, SkillDetail, SkillFile, ValidationResult, Runbook, RunbookState } from './types'
+import type { Skill, SkillDetail, SkillFile, ValidationResult, Runbook, RunbookState, Agent, AgentActionResponse, RecommendResult } from './types'
 
 const BASE = '/api'
 
@@ -104,4 +104,33 @@ export async function createRunbook(name: string, scope: string, phases: { skill
 
 export async function deleteRunbook(name: string): Promise<{ deleted: boolean }> {
   return request(`/runbooks/${encodeURIComponent(name)}`, { method: 'DELETE' })
+}
+
+export async function listAgents(): Promise<{ agents: Agent[] }> {
+  return request('/agents')
+}
+
+export async function connectAgent(agentId: string, scope: string = 'all', dryRun: boolean = false): Promise<AgentActionResponse> {
+  return request(`/agents/${encodeURIComponent(agentId)}/connect`, {
+    method: 'POST',
+    body: JSON.stringify({ scope, dryRun }),
+  })
+}
+
+export async function disconnectAgent(agentId: string): Promise<AgentActionResponse> {
+  return request(`/agents/${encodeURIComponent(agentId)}/disconnect`, { method: 'POST' })
+}
+
+export async function customConnectAgent(configPath: string, format: string = 'mcp-json', scope: string = 'all', dryRun: boolean = false): Promise<AgentActionResponse> {
+  return request('/agents/custom/connect', {
+    method: 'POST',
+    body: JSON.stringify({ configPath, format, scope, dryRun }),
+  })
+}
+
+export async function recommendSkills(query: string, limit: number = 5, scope: string = 'all'): Promise<RecommendResult> {
+  return request('/skills/recommend', {
+    method: 'POST',
+    body: JSON.stringify({ query, limit, scope }),
+  })
 }

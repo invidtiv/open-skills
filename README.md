@@ -91,6 +91,14 @@ python3 openskills.py test my-workflow
 python3 openskills.py add /path/to/skill-dir --local
 python3 openskills.py add /path/to/skill-dir --global
 
+# Recommend skills for a task
+python3 openskills.py recommend "deploy a Next.js app to Vercel"
+
+# Connect — register the MCP server into agent config files
+python3 openskills.py connect --list
+python3 openskills.py connect --cursor --codex
+python3 openskills.py connect --all --dry-run
+
 # Start the local Open Skills MCP Server
 python3 openskills.py mcp start
 
@@ -139,9 +147,76 @@ python3 openskills.py runbook reset
 
 To make these markdown files transportable across Cursor, Claude Code, and Codex, you can run the local Open Skills MCP Server. A lightweight process reads your `.open-skills/` and `~/.config/open-skills/` directories and exposes them dynamically to any active agent session.
 
-- **Dynamic Context Injection**: Exposes the `open-skills-context` prompt to feed all active skills into the agent's system prompt context.
+- **Dynamic Context Injection**: Exposes the `open-skills-context` prompt to feed active skills into the agent's system prompt context. Supports `OPENSKILLS_CONTEXT_MODE=index|full|directive_only` (default: `index`).
 - **Trigger Monitoring**: The `check_triggers` tool scans user queries for keyword overlap against skill triggers to automatically suggest injecting skills.
-- **Tools & Resources**: Exposes tools `list_skills`, `get_skill`, `get_runbook_state`, `advance_runbook` and resources like `open-skills://runbook-state`.
+- **Skill Recommendation**: The `recommend_skills` tool ranks skills by relevance to a task using LLM-backed semantic matching with deterministic fallback.
+- **Tools & Resources**: Exposes tools `recommend_skills`, `list_skills`, `get_skill`, `get_runbook_state`, `advance_runbook` and resources like `open-skills://runbook-state`.
+
+---
+
+## Agent MCP Registration (connect)
+
+The `connect` command registers the Open Skills MCP server into agent config files — idempotently, with backups and dry-run support.
+
+```bash
+# List detected agents and their install status
+python3 openskills.py connect --list
+
+# Register into specific agents
+python3 openskills.py connect --cursor --codex
+
+# Register into all detected agents
+python3 openskills.py connect --all
+
+# Preview changes without writing
+python3 openskills.py connect --all --dry-run
+
+# Register into a custom config path
+python3 openskills.py connect --target /path/to/config.json --format mcp-json
+
+# Remove the Open Skills entry from an agent
+python3 openskills.py connect --cursor --uninstall
+
+# Choose skill scope (all, local, or global)
+python3 openskills.py connect --cursor --scope local
+```
+
+Supported agents: Cursor, Claude Code, devin, Codex. The `connect` command is idempotent — re-running it updates the entry without disturbing other servers. A timestamped `.bak` backup is created before the first write to any file.
+
+---
+
+## Skill Recommendation
+
+The `recommend_skills` function ranks skills by relevance to a task query. It uses a two-stage pipeline:
+
+1. **Deterministic pre-filter**: Trigger matching + keyword overlap on name/description.
+2. **LLM ranking**: Sends compact metadata (name, description, triggers) to an LLM for semantic ranking.
+
+If no API key is available or the LLM call fails/times out, it falls back to the pre-filter results (degraded mode).
+
+```bash
+# CLI
+python3 openskills.py recommend "deploy a Next.js app to Vercel"
+
+# MCP tool (from any agent session)
+recommend_skills(query="deploy a Next.js app", limit=5)
+
+# REST API
+curl -X POST http://localhost:8000/api/skills/recommend \
+  -H 'Content-Type: application/json' \
+  -d '{"query": "deploy a Next.js app", "limit": 5}'
+```
+
+### Configuration
+
+| Variable | Default | Description |
+|---|---|---|
+| `OPENROUTER_API_KEY` | — | Required for LLM ranking. Falls back to degraded mode if missing. |
+| `RECOMMEND_MODEL` | `deepseek/deepseek-v4-flash` | Model for recommendation ranking. |
+| `RECOMMEND_API_BASE` | `https://openrouter.ai/api/v1/chat/completions` | Completions endpoint for recommendation. |
+| `RECOMMEND_CANDIDATE_CAP` | `20` | Pre-filter shortlist size. |
+| `RECOMMEND_TIMEOUT_MS` | `2000` | LLM timeout for recommendation. |
+| `OPENSKILLS_CONTEXT_MODE` | `index` | Context injection mode: `index`, `full`, or `directive_only`. |
 
 ---
 
@@ -212,8 +287,13 @@ When enabled, all API requests must include an `Authorization: Bearer <token>` h
 | POST | `/api/skills/{name}/validate` | Validate a skill |
 | POST | `/api/skills/add` | Import an external skill directory |
 | POST | `/api/skills/extract` | Extract a skill from last chat session |
+| POST | `/api/skills/recommend` | Recommend skills for a task query |
 | GET | `/api/skills/{name}/files` | List files in a skill directory |
 | GET | `/api/skills/{name}/files/{path}` | Read a file from a skill directory |
+| GET | `/api/agents` | List detected agents and install status |
+| POST | `/api/agents/{id}/connect` | Register MCP server into an agent |
+| POST | `/api/agents/{id}/disconnect` | Remove Open Skills entry from an agent |
+| POST | `/api/agents/custom/connect` | Register into a custom config path |
 | GET | `/api/runbooks` | List all runbooks |
 | GET | `/api/runbooks/state` | Get active runbook state |
 | POST | `/api/runbooks/{name}/start` | Start a runbook |
