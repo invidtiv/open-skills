@@ -5,14 +5,14 @@
     "semantic_hash": "8ab8729084acaaa571a2c5e90f13a6ef"
   },
   "/home/bsdev/open-skills/mcp_server.py": {
-    "mtime": 1782070921.7990406,
-    "ast_hash": "a0e2bbb5cf2a333fbc6b12a6b7fe17ab",
-    "semantic_hash": "a0e2bbb5cf2a333fbc6b12a6b7fe17ab"
+    "mtime": 1782221769.653789,
+    "ast_hash": "ae910af305228504844ac7454d306bd4",
+    "semantic_hash": "ae910af305228504844ac7454d306bd4"
   },
   "/home/bsdev/open-skills/openskills.py": {
-    "mtime": 1782071164.019443,
-    "ast_hash": "551de96e62f698cb850dafb816df6efa",
-    "semantic_hash": "551de96e62f698cb850dafb816df6efa"
+    "mtime": 1782221721.995876,
+    "ast_hash": "64884e3943d945796a4d4a14cc7bb907",
+    "semantic_hash": "64884e3943d945796a4d4a14cc7bb907"
   },
   "/home/bsdev/open-skills/support-billing-recovery/adapters/claude-code/tests/test_basic.py": {
     "mtime": 1781889190.2887588,
@@ -40,34 +40,24 @@
     "semantic_hash": "02ef4d176b238a44a97d080cd4aa83f5"
   },
   "/home/bsdev/open-skills/support-billing-recovery/tests/test_basic.py": {
-    "mtime": 1781889190.2887588,
-    "ast_hash": "02ef4d176b238a44a97d080cd4aa83f5",
-    "semantic_hash": "02ef4d176b238a44a97d080cd4aa83f5"
-  },
-  "/home/bsdev/open-skills/.open-skills/runbooks/release-day.md": {
-    "mtime": 1782071014.945811,
-    "ast_hash": "bda716771e476b15f9a78670b5af97af",
-    "semantic_hash": "bda716771e476b15f9a78670b5af97af"
+    "mtime": 1782216179.4367719,
+    "ast_hash": "4e2cfef16ecb1d994a0f66467b266ae3",
+    "semantic_hash": "4e2cfef16ecb1d994a0f66467b266ae3"
   },
   "/home/bsdev/open-skills/.open-skills/skills/pending-review/ai-chat-frontend-design/skill.md": {
     "mtime": 1782071187.3264003,
     "ast_hash": "72ad40d6d01c36d18d6b4a1fc74a693f",
     "semantic_hash": "72ad40d6d01c36d18d6b4a1fc74a693f"
   },
-  "/home/bsdev/open-skills/.open-skills/skills/test-skill/skill.md": {
-    "mtime": 1782070990.5638711,
-    "ast_hash": "1668d18ac6548a80b2219916ac95e09e",
-    "semantic_hash": "1668d18ac6548a80b2219916ac95e09e"
-  },
   "/home/bsdev/open-skills/README.md": {
-    "mtime": 1782071602.2987595,
-    "ast_hash": "51c6462562d9c500bd3eba4e0c282b93",
-    "semantic_hash": "51c6462562d9c500bd3eba4e0c282b93"
+    "mtime": 1782221848.925642,
+    "ast_hash": "9e44930501617793481d79bab6079fc1",
+    "semantic_hash": "9e44930501617793481d79bab6079fc1"
   },
   "/home/bsdev/open-skills/SPEC.md": {
-    "mtime": 1781888687.1050541,
-    "ast_hash": "c6cca4a63aaa3c2ccd7bf5d92ea7a386",
-    "semantic_hash": "c6cca4a63aaa3c2ccd7bf5d92ea7a386"
+    "mtime": 1782221842.4516542,
+    "ast_hash": "9d95d2b599446843393db79b6bb19d33",
+    "semantic_hash": "9d95d2b599446843393db79b6bb19d33"
   },
   "/home/bsdev/open-skills/docs/index.html": {
     "mtime": 1782071618.986729,
@@ -75,9 +65,9 @@
     "semantic_hash": "6271a2610a8f9aa07f2eb8def32488c3"
   },
   "/home/bsdev/open-skills/support-billing-recovery/SKILL.md": {
-    "mtime": 1781889170.8318102,
-    "ast_hash": "68590061d502870b960c748a5b799fda",
-    "semantic_hash": "68590061d502870b960c748a5b799fda"
+    "mtime": 1782216121.9469078,
+    "ast_hash": "4cb7f66135d21b2324f39b99d1b98443",
+    "semantic_hash": "4cb7f66135d21b2324f39b99d1b98443"
   },
   "/home/bsdev/open-skills/support-billing-recovery/adapters/claude-code.md": {
     "mtime": 1781889196.5017426,
@@ -99,9 +89,154 @@
     "ast_hash": "5a5cae16ef3998ea690b94569ca1a929",
     "semantic_hash": "5a5cae16ef3998ea690b94569ca1a929"
   },
-  "/home/bsdev/open-skills/support-billing-recovery/manifest.yaml": {
-    "mtime": 1781889176.0027966,
-    "ast_hash": "4668a40ecf6bf1f9bd4393f578690cac",
-    "semantic_hash": "4668a40ecf6bf1f9bd4393f578690cac"
+  "/home/bsdev/open-skills/.claude/settings.local.json": {
+    "mtime": 1782176832.8028276,
+    "ast_hash": "eb6597d7e3718ecd1ea58df97d8ef528",
+    "semantic_hash": "eb6597d7e3718ecd1ea58df97d8ef528"
+  },
+  "/home/bsdev/open-skills/core.py": {
+    "mtime": 1782285119.236928,
+    "ast_hash": "f8df5979667a9499f08ab46b96ba536f",
+    "semantic_hash": "f8df5979667a9499f08ab46b96ba536f"
+  },
+  "/home/bsdev/open-skills/pyproject.toml": {
+    "mtime": 1782285119.7619267,
+    "ast_hash": "d21d6837cb8c0d3db9b626c77f681094",
+    "semantic_hash": "d21d6837cb8c0d3db9b626c77f681094"
+  },
+  "/home/bsdev/open-skills/server.py": {
+    "mtime": 1782285363.5043619,
+    "ast_hash": "0bfd66c43fff8ea9f3e56702b31f139f",
+    "semantic_hash": "0bfd66c43fff8ea9f3e56702b31f139f"
+  },
+  "/home/bsdev/open-skills/tests/test_core.py": {
+    "mtime": 1782221917.3535137,
+    "ast_hash": "245375dc47935e2ba600dd3d4153efe3",
+    "semantic_hash": "245375dc47935e2ba600dd3d4153efe3"
+  },
+  "/home/bsdev/open-skills/web/eslint.config.js": {
+    "mtime": 1782176910.0236328,
+    "ast_hash": "0355276bc79439afe3c53e3a2470ca1e",
+    "semantic_hash": "0355276bc79439afe3c53e3a2470ca1e"
+  },
+  "/home/bsdev/open-skills/web/package.json": {
+    "mtime": 1782176940.124557,
+    "ast_hash": "94cdef684978249345a39f15b4eed1b0",
+    "semantic_hash": "94cdef684978249345a39f15b4eed1b0"
+  },
+  "/home/bsdev/open-skills/web/src/App.tsx": {
+    "mtime": 1782177166.820989,
+    "ast_hash": "cfc04ab6282fb1f0bef6fdd6f4b4738c",
+    "semantic_hash": "cfc04ab6282fb1f0bef6fdd6f4b4738c"
+  },
+  "/home/bsdev/open-skills/web/src/api.ts": {
+    "mtime": 1782260669.4987864,
+    "ast_hash": "e49c815e7c8121813ad4275b9e17d29a",
+    "semantic_hash": "e49c815e7c8121813ad4275b9e17d29a"
+  },
+  "/home/bsdev/open-skills/web/src/components/FileTree.tsx": {
+    "mtime": 1782177056.1822658,
+    "ast_hash": "ac347ba4863298df09367099d83ed213",
+    "semantic_hash": "ac347ba4863298df09367099d83ed213"
+  },
+  "/home/bsdev/open-skills/web/src/components/FrontmatterForm.tsx": {
+    "mtime": 1782221826.415684,
+    "ast_hash": "5ce4e7c3bcaafdac2c8be209eb4221a2",
+    "semantic_hash": "5ce4e7c3bcaafdac2c8be209eb4221a2"
+  },
+  "/home/bsdev/open-skills/web/src/components/Layout.tsx": {
+    "mtime": 1782285120.8059242,
+    "ast_hash": "6600cfde375ac0636efb80c411b13e3a",
+    "semantic_hash": "6600cfde375ac0636efb80c411b13e3a"
+  },
+  "/home/bsdev/open-skills/web/src/components/RunbookTracker.tsx": {
+    "mtime": 1782177071.3852277,
+    "ast_hash": "f3dccd4e9b9eef860ab6131beb494d28",
+    "semantic_hash": "f3dccd4e9b9eef860ab6131beb494d28"
+  },
+  "/home/bsdev/open-skills/web/src/components/SkillList.tsx": {
+    "mtime": 1782285354.1413836,
+    "ast_hash": "eec5966b5fbb17a9098f492bd6471309",
+    "semantic_hash": "eec5966b5fbb17a9098f492bd6471309"
+  },
+  "/home/bsdev/open-skills/web/src/components/Toast.tsx": {
+    "mtime": 1782177014.62837,
+    "ast_hash": "e3e95cc5d7431bf9b233f58580352a30",
+    "semantic_hash": "e3e95cc5d7431bf9b233f58580352a30"
+  },
+  "/home/bsdev/open-skills/web/src/components/ValidationPanel.tsx": {
+    "mtime": 1782248934.3270261,
+    "ast_hash": "e979fc70e25c0e5847cc31f4c0314902",
+    "semantic_hash": "e979fc70e25c0e5847cc31f4c0314902"
+  },
+  "/home/bsdev/open-skills/web/src/main.tsx": {
+    "mtime": 1782176910.0256329,
+    "ast_hash": "787e5a07efeb2bf6209d5937195f2f68",
+    "semantic_hash": "787e5a07efeb2bf6209d5937195f2f68"
+  },
+  "/home/bsdev/open-skills/web/src/pages/ExtractPage.tsx": {
+    "mtime": 1782177156.1130157,
+    "ast_hash": "0edce7bb71dd235df5988dc6be90002d",
+    "semantic_hash": "0edce7bb71dd235df5988dc6be90002d"
+  },
+  "/home/bsdev/open-skills/web/src/pages/RunbooksPage.tsx": {
+    "mtime": 1782252717.5934517,
+    "ast_hash": "5a05641c9690596d5e55e0434bee335d",
+    "semantic_hash": "5a05641c9690596d5e55e0434bee335d"
+  },
+  "/home/bsdev/open-skills/web/src/pages/SkillDetailPage.tsx": {
+    "mtime": 1782248965.9249523,
+    "ast_hash": "3da2dccbd0457865e361ca0bc363c6ba",
+    "semantic_hash": "3da2dccbd0457865e361ca0bc363c6ba"
+  },
+  "/home/bsdev/open-skills/web/src/pages/SkillsPage.tsx": {
+    "mtime": 1782260753.9725776,
+    "ast_hash": "592589e717ee37849f082296f8afaa50",
+    "semantic_hash": "592589e717ee37849f082296f8afaa50"
+  },
+  "/home/bsdev/open-skills/web/src/types.ts": {
+    "mtime": 1782221808.2167177,
+    "ast_hash": "75a57f4537ce0d402486b988a99d09d2",
+    "semantic_hash": "75a57f4537ce0d402486b988a99d09d2"
+  },
+  "/home/bsdev/open-skills/web/tsconfig.app.json": {
+    "mtime": 1782176910.0256329,
+    "ast_hash": "136630b5accce1ca50663df229534a26",
+    "semantic_hash": "136630b5accce1ca50663df229534a26"
+  },
+  "/home/bsdev/open-skills/web/tsconfig.json": {
+    "mtime": 1782176910.0256329,
+    "ast_hash": "a3d39fa780ebff65444de257f291ce6c",
+    "semantic_hash": "a3d39fa780ebff65444de257f291ce6c"
+  },
+  "/home/bsdev/open-skills/web/tsconfig.node.json": {
+    "mtime": 1782176910.0256329,
+    "ast_hash": "70bdd0a673bcfc0e828080b306e7c680",
+    "semantic_hash": "70bdd0a673bcfc0e828080b306e7c680"
+  },
+  "/home/bsdev/open-skills/web/vite.config.ts": {
+    "mtime": 1782245589.9394674,
+    "ast_hash": "cbac73d05e21a9ac5577ba8d42852732",
+    "semantic_hash": "cbac73d05e21a9ac5577ba8d42852732"
+  },
+  "/home/bsdev/open-skills/web/README.md": {
+    "mtime": 1782176910.0226328,
+    "ast_hash": "f6e3faf55d738cf2affe1b44195f27cf",
+    "semantic_hash": "f6e3faf55d738cf2affe1b44195f27cf"
+  },
+  "/home/bsdev/open-skills/web/index.html": {
+    "mtime": 1782177273.1467235,
+    "ast_hash": "2472d541103c6d9eecba88ad173a8a2d",
+    "semantic_hash": "2472d541103c6d9eecba88ad173a8a2d"
+  },
+  "/home/bsdev/open-skills/web/public/favicon.svg": {
+    "mtime": 1782176910.0236328,
+    "ast_hash": "7e840862161341271697daa99a40d76b",
+    "semantic_hash": "7e840862161341271697daa99a40d76b"
+  },
+  "/home/bsdev/open-skills/web/public/icons.svg": {
+    "mtime": 1782176910.0236328,
+    "ast_hash": "3b4fcfcf393eca4d264dca4a4663bc37",
+    "semantic_hash": "3b4fcfcf393eca4d264dca4a4663bc37"
   }
 }

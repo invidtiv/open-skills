@@ -1,178 +1,165 @@
-# Graph Report - .  (2026-06-21)
+# Graph Report - .  (2026-06-24)
 
 ## Corpus Check
-- Corpus is ~22,070 words - fits in a single context window. You may not need a graph.
+- Corpus is ~31,914 words - fits in a single context window. You may not need a graph.
 
 ## Summary
-- 184 nodes · 262 edges · 11 communities (10 shown, 1 thin omitted)
-- Extraction: 98% EXTRACTED · 2% INFERRED · 0% AMBIGUOUS · INFERRED: 5 edges (avg confidence: 0.75)
+- 476 nodes · 742 edges · 31 communities (19 shown, 12 thin omitted)
+- Extraction: 99% EXTRACTED · 1% INFERRED · 0% AMBIGUOUS · INFERRED: 11 edges (avg confidence: 0.81)
 - Token cost: 0 input · 0 output
 
 ## Community Hubs (Navigation)
-- [[_COMMUNITY_Skill Spec & Adapters|Skill Spec & Adapters]]
-- [[_COMMUNITY_CLI Commands|CLI Commands]]
-- [[_COMMUNITY_MCP Server|MCP Server]]
-- [[_COMMUNITY_Claude Code Tests|Claude Code Tests]]
-- [[_COMMUNITY_Codex Tests|Codex Tests]]
-- [[_COMMUNITY_Cursor Tests|Cursor Tests]]
-- [[_COMMUNITY_Generic Tests|Generic Tests]]
-- [[_COMMUNITY_Hermes Tests|Hermes Tests]]
-- [[_COMMUNITY_Core Skill Tests|Core Skill Tests]]
-- [[_COMMUNITY_Platform Export|Platform Export]]
-- [[_COMMUNITY_Skill Scoping|Skill Scoping]]
+- [[_COMMUNITY_React UI Components|React UI Components]]
+- [[_COMMUNITY_Core Library|Core Library]]
+- [[_COMMUNITY_Backend Services & API|Backend Services & API]]
+- [[_COMMUNITY_Core Unit Tests|Core Unit Tests]]
+- [[_COMMUNITY_MCP Server Tools|MCP Server Tools]]
+- [[_COMMUNITY_Web Package Dependencies|Web Package Dependencies]]
+- [[_COMMUNITY_Runbook State Machine|Runbook State Machine]]
+- [[_COMMUNITY_App TypeScript Config|App TypeScript Config]]
+- [[_COMMUNITY_Node TypeScript Config|Node TypeScript Config]]
+- [[_COMMUNITY_Claude Code Adapter Tests|Claude Code Adapter Tests]]
+- [[_COMMUNITY_Codex Adapter Tests|Codex Adapter Tests]]
+- [[_COMMUNITY_Cursor Adapter Tests|Cursor Adapter Tests]]
+- [[_COMMUNITY_Generic Adapter Tests|Generic Adapter Tests]]
+- [[_COMMUNITY_Hermes Adapter Tests|Hermes Adapter Tests]]
+- [[_COMMUNITY_Billing Recovery Tests|Billing Recovery Tests]]
+- [[_COMMUNITY_Frontmatter Form|Frontmatter Form]]
+- [[_COMMUNITY_Platform Adapters|Platform Adapters]]
+- [[_COMMUNITY_Skill Validation|Skill Validation]]
+- [[_COMMUNITY_Spec Core Concepts|Spec Core Concepts]]
+- [[_COMMUNITY_Root TS Config|Root TS Config]]
+- [[_COMMUNITY_Claude Code Adapter|Claude Code Adapter]]
+- [[_COMMUNITY_Codex Adapter|Codex Adapter]]
+- [[_COMMUNITY_Generic Adapter|Generic Adapter]]
+- [[_COMMUNITY_Hermes Adapter|Hermes Adapter]]
+- [[_COMMUNITY_Docs Site|Docs Site]]
+- [[_COMMUNITY_MCP Resources|MCP Resources]]
+- [[_COMMUNITY_Legacy CLI Commands|Legacy CLI Commands]]
+- [[_COMMUNITY_Package Metadata|Package Metadata]]
+- [[_COMMUNITY_Project README|Project README]]
 
 ## God Nodes (most connected - your core abstractions)
-1. `die()` - 13 edges
-2. `cmd_extract()` - 9 edges
-3. `ok()` - 8 edges
-4. `cmd_runbook()` - 8 edges
-5. `parse_frontmatter() Helper` - 8 edges
-6. `get_local_dir()` - 7 edges
-7. `Support Billing Recovery Skill` - 7 edges
-8. `get_global_dir()` - 6 edges
-9. `parse_frontmatter()` - 6 edges
-10. `cmd_install()` - 6 edges
+1. `request()` - 22 edges
+2. `compilerOptions` - 17 edges
+3. `compilerOptions` - 16 edges
+4. `get_all_skills()` - 13 edges
+5. `die()` - 13 edges
+6. `validate_skill_content()` - 11 edges
+7. `get_local_dir()` - 11 edges
+8. `parse_frontmatter()` - 11 edges
+9. `useToast()` - 11 edges
+10. `resolve_skill()` - 10 edges
 
 ## Surprising Connections (you probably didn't know these)
-- `Work Package Checklist (8 Ownership Checks)` --conceptually_related_to--> `cmd_score() (One-Question Test CLI)`  [INFERRED]
-  SPEC.md → openskills.py
-- `AI Chat Frontend Design Skill (Pending Review)` --references--> `Session-to-Skill Extractor (Flywheel)`  [INFERRED]
-  .open-skills/skills/pending-review/ai-chat-frontend-design/skill.md → openskills.py
-- `MCP Tool: check_triggers` --semantically_similar_to--> `cmd_validate() (Anatomy Validator CLI)`  [INFERRED] [semantically similar]
-  mcp_server.py → openskills.py
-- `MCP Tool: advance_runbook` --semantically_similar_to--> `cmd_runbook() (Runbook State Machine CLI)`  [INFERRED] [semantically similar]
-  mcp_server.py → openskills.py
-- `cmd_validate() (Anatomy Validator CLI)` --implements--> `skill.md File Format (YAML Frontmatter + Markdown Body)`  [EXTRACTED]
-  openskills.py → SPEC.md
+- `Runbooks as Composition` --references--> `Runbook State Machine (start/advance/prev/reset)`  [INFERRED]
+  README.md → core.py
+- `validate_skill_content()` --implements--> `Open Skill Package Format`  [EXTRACTED]
+  core.py → SPEC.md
+- `ValidationPanel Component` --shares_data_with--> `validate_skill_content()`  [INFERRED]
+  web/src/components/ValidationPanel.tsx → core.py
+- `import_github()` --semantically_similar_to--> `openskills.py (CLI Entry Point)`  [INFERRED] [semantically similar]
+  server.py → openskills.py
+- `FrontmatterForm Component` --implements--> `Open Skill Package Format`  [INFERRED]
+  web/src/components/FrontmatterForm.tsx → SPEC.md
 
 ## Import Cycles
 - None detected.
 
 ## Hyperedges (group relationships)
-- **Platform Adapter Export System** — adapters_dict, cmd_export_fn, adapter_claude_code, adapter_codex, adapter_hermes, adapter_generic, platform_adapters_concept [EXTRACTED 0.95]
-- **Skill Anatomy Specification and Validation Pipeline** — skill_md_format, cmd_validate_fn, work_package_checklist, cmd_score_fn, support_billing_recovery_tests [INFERRED 0.85]
-- **Runbook Execution Flow (CLI + MCP)** — runbook_concept, cmd_runbook_fn, mcp_tool_advance_runbook, release_day_runbook, mcp_prompt_context [INFERRED 0.80]
+- **Core Module As Shared Logic Hub** — core_module, server_module, mcp_server_module, openskills_cli [EXTRACTED 1.00]
+- **LLM-Powered Skill Extraction Pipeline** — openskills_extract_command, openskills_get_last_session, openskills_call_llm, concept_openrouter, concept_deepseek_v4_flash, concept_superpowers_db, concept_claude_history [EXTRACTED 0.95]
+- **Web UI Skill Editing Flow** — web_skill_detail_page, web_frontmatter_form, web_validation_panel, web_file_tree, web_api_client, server_skills_endpoints [EXTRACTED 0.90]
 
-## Communities (11 total, 1 thin omitted)
+## Communities (31 total, 12 thin omitted)
 
-### Community 0 - "Skill Spec & Adapters"
+### Community 0 - "React UI Components"
+Cohesion: 0.06
+Nodes (53): FileTree(), Props, Layout(), NAV, Props, RunbookTracker(), Props, Toast (+45 more)
+
+### Community 1 - "Core Library"
 Cohesion: 0.09
-Nodes (29): Claude Code Adapter for Support Billing Recovery, Codex Adapter for Support Billing Recovery, Generic Adapter for Support Billing Recovery, Hermes Adapter for Support Billing Recovery, AI Chat Frontend Design Skill (Pending Review), cmd_runbook() (Runbook State Machine CLI), cmd_score() (One-Question Test CLI), cmd_validate() (Anatomy Validator CLI) (+21 more)
+Nodes (64): Any, advance_runbook(), find_skill_file(), get_all_skills(), get_global_dir(), get_local_dir(), get_runbook_state_file(), match_triggers() (+56 more)
 
-### Community 1 - "CLI Commands"
-Cohesion: 0.20
-Nodes (27): call_openai_chat_completions(), cmd_export(), cmd_extract(), cmd_graph(), cmd_init(), cmd_install(), cmd_list(), cmd_mcp() (+19 more)
+### Community 2 - "Backend Services & API"
+Cohesion: 0.05
+Nodes (52): BaseModel, Claude History JSONL (Chat Log Source), DeepSeek V4 Flash Model, FastMCP Library, OpenRouter API (External LLM Service), Superpowers SQLite DB (Chat Log Source), core.py Module (Shared Logic), mcp_server.py (MCP Server) (+44 more)
 
-### Community 2 - "MCP Server"
-Cohesion: 0.08
-Nodes (24): FastMCP Framework, advance_runbook(), check_triggers(), get_global_runbook_resource(), get_global_skill_resource(), get_local_runbook_resource(), get_local_skill_resource(), get_runbook_state() (+16 more)
+### Community 4 - "MCP Server Tools"
+Cohesion: 0.07
+Nodes (29): advance_runbook(), check_triggers(), get_global_runbook_resource(), get_global_skill_resource(), get_local_runbook_resource(), get_local_skill_resource(), get_runbook_state(), get_runbook_state_resource() (+21 more)
 
-### Community 3 - "Claude Code Tests"
+### Community 5 - "Web Package Dependencies"
+Cohesion: 0.07
+Nodes (29): dependencies, react, react-dom, react-router-dom, @tanstack/react-query, devDependencies, eslint, @eslint/js (+21 more)
+
+### Community 6 - "Runbook State Machine"
+Cohesion: 0.10
+Nodes (20): _write_state_atomic() Atomic File Write, Runbook State Machine (start/advance/prev/reset), Extracting Workflows (The Flywheel), Runbooks as Composition, Runbook REST API Endpoints, Rationale: Portability Via Vendor-Agnostic Format, Open Skill Package Format, api.ts (Frontend API Client) (+12 more)
+
+### Community 7 - "App TypeScript Config"
+Cohesion: 0.11
+Nodes (18): compilerOptions, allowImportingTsExtensions, erasableSyntaxOnly, jsx, lib, module, moduleDetection, moduleResolution (+10 more)
+
+### Community 8 - "Node TypeScript Config"
+Cohesion: 0.11
+Nodes (17): compilerOptions, allowImportingTsExtensions, erasableSyntaxOnly, lib, module, moduleDetection, moduleResolution, noEmit (+9 more)
+
+### Community 9 - "Claude Code Adapter Tests"
 Cohesion: 0.17
 Nodes (10): main(), The core SKILL.md must not contain platform-specific markers., Verify the decision logic in Step 3 is well-defined., test_compatibility_declared(), test_decision_logic(), test_manifest_dependencies_declared(), test_manifest_exists(), test_permissions_bounded() (+2 more)
 
-### Community 4 - "Codex Tests"
+### Community 10 - "Codex Adapter Tests"
 Cohesion: 0.17
 Nodes (10): main(), The core SKILL.md must not contain platform-specific markers., Verify the decision logic in Step 3 is well-defined., test_compatibility_declared(), test_decision_logic(), test_manifest_dependencies_declared(), test_manifest_exists(), test_permissions_bounded() (+2 more)
 
-### Community 5 - "Cursor Tests"
+### Community 11 - "Cursor Adapter Tests"
 Cohesion: 0.17
 Nodes (10): main(), The core SKILL.md must not contain platform-specific markers., Verify the decision logic in Step 3 is well-defined., test_compatibility_declared(), test_decision_logic(), test_manifest_dependencies_declared(), test_manifest_exists(), test_permissions_bounded() (+2 more)
 
-### Community 6 - "Generic Tests"
+### Community 12 - "Generic Adapter Tests"
 Cohesion: 0.17
 Nodes (10): main(), The core SKILL.md must not contain platform-specific markers., Verify the decision logic in Step 3 is well-defined., test_compatibility_declared(), test_decision_logic(), test_manifest_dependencies_declared(), test_manifest_exists(), test_permissions_bounded() (+2 more)
 
-### Community 7 - "Hermes Tests"
+### Community 13 - "Hermes Adapter Tests"
 Cohesion: 0.17
 Nodes (10): main(), The core SKILL.md must not contain platform-specific markers., Verify the decision logic in Step 3 is well-defined., test_compatibility_declared(), test_decision_logic(), test_manifest_dependencies_declared(), test_manifest_exists(), test_permissions_bounded() (+2 more)
 
-### Community 8 - "Core Skill Tests"
-Cohesion: 0.17
-Nodes (10): main(), The core SKILL.md must not contain platform-specific markers., Verify the decision logic in Step 3 is well-defined., test_compatibility_declared(), test_decision_logic(), test_manifest_dependencies_declared(), test_manifest_exists(), test_permissions_bounded() (+2 more)
+### Community 14 - "Billing Recovery Tests"
+Cohesion: 0.15
+Nodes (6): main(), test_decision_logic(), test_platform_agnostic(), The core SKILL.md must not contain platform-specific markers., Verify the decision logic in Step 3 is well-defined., test_verification_contract_section_exists()
 
-### Community 9 - "Platform Export"
-Cohesion: 0.50
-Nodes (4): ADAPTERS Dictionary (Platform Wrappers), cmd_export() (Platform Export CLI), Platform Adapters (Generated Wrappers), Rationale: Platform-Agnostic Core with Generated Adapters
+### Community 16 - "Platform Adapters"
+Cohesion: 0.67
+Nodes (3): ADAPTERS Map (hermes, claude-code, cursor, codex, generic), Platform Adapters, Rationale: Adapters Are Generated Not Maintained
+
+### Community 17 - "Skill Validation"
+Cohesion: 0.67
+Nodes (3): CHECKS List (One-Question Test Implementation), One-Question Test, Work Package Checklist (8 Checks)
+
+### Community 18 - "Spec Core Concepts"
+Cohesion: 0.67
+Nodes (3): Open Skill Concept, Rationale: Skill Ownership Over Vendor Lock-in, Skill Debt Concept
 
 ## Knowledge Gaps
-- **16 isolated node(s):** `Open Skills CLI (openskills.py)`, `manifest.yaml Declaration Format`, `Local Scope (.open-skills/ Directory)`, `Global Scope (~/.config/open-skills/ Directory)`, `Claude Code Adapter for Support Billing Recovery` (+11 more)
+- **105 isolated node(s):** `openskills`, `Request`, `name`, `private`, `version` (+100 more)
   These have ≤1 connection - possible missing edges or undocumented components.
-- **1 thin communities (<3 nodes) omitted from report** — run `graphify query` to explore isolated nodes.
+- **12 thin communities (<3 nodes) omitted from report** — run `graphify query` to explore isolated nodes.
 
 ## Suggested Questions
 _Questions this graph is uniquely positioned to answer:_
 
-- **Why does `parse_frontmatter() Helper` connect `Skill Spec & Adapters` to `Platform Export`, `MCP Server`?**
-  _High betweenness centrality (0.114) - this node is a cross-community bridge._
-- **What connects `Read a local skill's markdown content.`, `Read a global skill's markdown content.`, `Read a local runbook's content.` to the rest of the system?**
-  _39 weakly-connected nodes found - possible documentation gaps or missing edges._
-- **Should `Skill Spec & Adapters` be split into smaller, more focused modules?**
-  _Cohesion score 0.08620689655172414 - nodes in this community are weakly interconnected._
-- **Should `MCP Server` be split into smaller, more focused modules?**
-  _Cohesion score 0.08 - nodes in this community are weakly interconnected._
-
-## Graph Traversal Findings
-
-### Q1: Why does `parse_frontmatter()` bridge Skill Spec & Adapters, Platform Export, and MCP Server?
-
-Two `parse_frontmatter` nodes exist in the graph — the AST-extracted function (community 1, CLI Commands, degree 6) and the semantic-extracted concept (community 0, Skill Spec & Adapters, degree 8). The semantic node is the bridge with betweenness centrality 0.114.
-
-It connects three communities:
-
-| Community | Role | Connection |
-|-----------|------|------------|
-| **0 — Skill Spec & Adapters** | Home community | Called by `list_skills`, `check_triggers`, `cmd_score`, `cmd_validate`, and the Extractor Flywheel |
-| **2 — MCP Server** | Consumer | `mcp_server.py` calls it directly to read skill files |
-| **9 — Platform Export** | Consumer | `cmd_export()` calls it to read adapter templates |
-
-**Verdict: Justified chokepoint, not a code smell.** Every pathway that needs to understand a skill file — MCP server, CLI validation/scoring, or the export pipeline — must parse YAML frontmatter first. `parse_frontmatter()` is the single gateway to skill metadata. Splitting it would create duplication without reducing coupling.
-
-### Q2: What connects the weakly-connected resource/tool description nodes?
-
-69 nodes in the graph have degree ≤ 1. Nearly all are MCP tool and resource docstrings from `mcp_server.py` — descriptions like "Read a local skill's markdown content", "List all available skills with metadata", etc. Each connects only to its parent function via a single `rationale_for` edge.
-
-Examples:
-- `Read a local skill's markdown content.` → `get_local_skill_resource()` (degree 1)
-- `Read a global skill's markdown content.` → `get_global_skill_resource()` (degree 1)
-- `Read a local runbook's content.` → `get_local_runbook_resource()` (degree 1)
-
-**Verdict: Not a documentation gap.** These are documentation leaf nodes — metadata about functions, not independent concepts. The graph correctly represents that docstrings explain functions. These could be folded into the function nodes as attributes to reduce graph noise, but no architectural edges are missing.
-
-### Q3: Should Skill Spec & Adapters (community 0) be split?
-
-- **29 nodes**, **35 internal edges**, **2 cross-community edges**
-- Cohesion: **0.086**
-- Spans **15 source files**: SPEC.md (8 nodes), openskills.py (5), mcp_server.py (4), plus individual adapter docs, the example skill, runbooks, and pending skills
-
-The low cohesion reflects that these nodes share a conceptual domain (the Open Skills spec) but don't call each other directly. SPEC.md concepts like "Work Package Checklist" and "One-Question Test" are referenced by code but don't reference each other — they are defined together and implemented separately.
-
-**Verdict: Correctly grouped by domain, not by coupling.** Splitting would scatter related concepts. The low cohesion is characteristic of a spec-driven community (concepts co-defined, independently implemented) rather than a code-driven one. No action needed.
-
-### Q4: Should MCP Server (community 2) be split?
-
-- **25 nodes**, **24 internal edges**, **2 cross-community edges**
-- Cohesion: **0.08**
-- **24 of 25 nodes** come from a single file: `mcp_server.py`
-
-The low cohesion is a measurement artifact: degree-1 docstring nodes (see Q2) dilute the score. The actual function nodes are well-connected through `mcp_server.py`'s `contains` edges.
-
-Cross-community edges (only 2):
-- `mcp_server.py` **imports** `openskills.py` (community 1 — CLI Commands)
-- `mcp_server.py` **calls** `parse_frontmatter()` (community 0 — Skill Spec & Adapters)
-
-**Verdict: Architecturally clean.** The MCP server is a thin wrapper that imports the CLI library and exposes it over MCP. Its only dependency is `openskills.py`, which is the correct single point of coupling. No split needed.
-
-### Architectural Summary
-
-The codebase has a clean three-layer architecture:
-
-```
-SPEC.md (defines concepts)
-    ↓
-openskills.py (implements as CLI commands)
-    ↓
-mcp_server.py (wraps for agent access)
-```
-
-`parse_frontmatter()` is the justified chokepoint between layers. The low cohesion scores and weakly-connected nodes are measurement artifacts from docstrings being extracted as standalone nodes, not architectural problems.
+- **Why does `validate_skill_content()` connect `Core Library` to `Runbook State Machine`?**
+  _High betweenness centrality (0.027) - this node is a cross-community bridge._
+- **Why does `ValidationPanel Component` connect `Runbook State Machine` to `Core Library`?**
+  _High betweenness centrality (0.016) - this node is a cross-community bridge._
+- **What connects `core — shared logic for Open Skills CLI and MCP server.  Fixes addressed:   S1`, `Slugify a skill name. Raises ValueError if result is empty.`, `Validate skill markdown content. Returns dict with 'errors', 'checks', and 'warn` to the rest of the system?**
+  _156 weakly-connected nodes found - possible documentation gaps or missing edges._
+- **Should `React UI Components` be split into smaller, more focused modules?**
+  _Cohesion score 0.056842105263157895 - nodes in this community are weakly interconnected._
+- **Should `Core Library` be split into smaller, more focused modules?**
+  _Cohesion score 0.08997668997668998 - nodes in this community are weakly interconnected._
+- **Should `Backend Services & API` be split into smaller, more focused modules?**
+  _Cohesion score 0.054098360655737705 - nodes in this community are weakly interconnected._
+- **Should `Core Unit Tests` be split into smaller, more focused modules?**
+  _Cohesion score 0.06060606060606061 - nodes in this community are weakly interconnected._
