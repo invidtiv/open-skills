@@ -1,5 +1,6 @@
 .env
 .open-skills/.runbook-state
+.open-skills/skills/pending-review/
 .runbook-state
 __pycache__/
 *.pyc

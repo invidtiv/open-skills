@@ -1,6 +1,7 @@
 export interface Skill {
   name: string
   scope: string
+  category: string
   path: string
   description: string
   triggers: string[]
@@ -9,6 +10,15 @@ export interface Skill {
   output_format: string
   disable_model_invocation: boolean
   user_invocable: boolean
+}
+
+export interface Category {
+  name: string
+  label: string
+  description: string
+  skill_count: number
+  scope: string
+  path: string
 }
 
 export interface SkillDetail extends Skill {

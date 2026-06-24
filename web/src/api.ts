@@ -1,4 +1,4 @@
-import type { Skill, SkillDetail, SkillFile, ValidationResult, Runbook, RunbookState, Agent, AgentActionResponse, RecommendResult } from './types'
+import type { Skill, SkillDetail, SkillFile, ValidationResult, Runbook, RunbookState, Agent, AgentActionResponse, RecommendResult, Category } from './types'
 
 const BASE = '/api'
 
@@ -133,4 +133,87 @@ export async function recommendSkills(query: string, limit: number = 5, scope: s
     method: 'POST',
     body: JSON.stringify({ query, limit, scope }),
   })
+}
+
+export async function listCategories(): Promise<{ categories: Category[] }> {
+  return request('/categories')
+}
+
+export async function moveSkill(name: string, category: string, scope: string = 'global'): Promise<{ action: string }> {
+  return request(`/skills/${encodeURIComponent(name)}/move`, {
+    method: 'POST',
+    body: JSON.stringify({ category, scope }),
+  })
+}
+
+export async function promoteSkill(name: string, category: string = ''): Promise<{ action: string }> {
+  return request(`/skills/${encodeURIComponent(name)}/promote`, {
+    method: 'POST',
+    body: JSON.stringify({ category }),
+  })
+}
+
+export async function createCategory(name: string, description: string = '', scope: string = 'global'): Promise<{ action: string; name: string }> {
+  return request('/categories', {
+    method: 'POST',
+    body: JSON.stringify({ name, description, scope }),
+  })
+}
+
+export async function updateCategory(name: string, newName: string = '', description?: string): Promise<{ action: string; name: string }> {
+  return request(`/categories/${encodeURIComponent(name)}`, {
+    method: 'PUT',
+    body: JSON.stringify({ new_name: newName, description }),
+  })
+}
+
+export interface GitStatus {
+  initialized: boolean
+  clean?: boolean
+  changed_files?: number
+  changes?: string[]
+  remote?: string | null
+  last_commit?: string | null
+  ahead?: number
+  error?: string
+}
+
+export async function getGitStatus(): Promise<GitStatus> {
+  return request('/git/status')
+}
+
+export async function gitPush(message: string = ''): Promise<{ action: string; commit?: string; files?: number; message?: string }> {
+  return request('/git/push', {
+    method: 'POST',
+    body: JSON.stringify({ message }),
+  })
+}
+
+export interface TriggerMatch {
+  skill: string
+  trigger: string
+  score: number
+}
+
+export async function checkTriggers(prompt: string): Promise<{ matches: TriggerMatch[] }> {
+  return request('/triggers/check', {
+    method: 'POST',
+    body: JSON.stringify({ prompt }),
+  })
+}
+
+export interface UsageStats {
+  period_days: number
+  total_calls: number
+  tool_breakdown: Record<string, number>
+  skill_usage: Record<string, number>
+  skill_last_used: Record<string, string>
+  agent_breakdown: Record<string, number>
+  never_used: string[]
+  never_used_count: number
+  total_skills: number
+}
+
+export async function getUsageStats(days: number): Promise<UsageStats> {
+  return request(`/usage?days=${days}`)
 }

@@ -55,6 +55,7 @@ from core import (
     get_api_key,
     get_last_session_transcript,
     call_llm_extraction,
+    get_usage_stats,
     extract_skill_name_from_md,
 )
 
@@ -725,6 +726,44 @@ def cmd_graph(args):
         print(f"    ├── boundary: {boundary}")
     print()
 
+def cmd_usage(args):
+    """Show skill usage analytics from MCP server logs."""
+    days = 90
+    if args and args[0].isdigit():
+        days = int(args[0])
+    stats = get_usage_stats(days=days)
+
+    print(f"\n  Skill Usage Analytics — last {stats['period_days']} days\n")
+    print(f"  Total MCP tool calls: {stats['total_calls']}")
+    print(f"  Total skills: {stats['total_skills']}")
+    print(f"  Never used: {stats['never_used_count']}\n")
+
+    if stats["tool_breakdown"]:
+        print("  Tool breakdown:")
+        for tool, count in stats["tool_breakdown"].items():
+            print(f"    {tool:25s} {count:>5d}")
+        print()
+
+    if stats["agent_breakdown"]:
+        print("  Agent breakdown:")
+        for agent, count in stats["agent_breakdown"].items():
+            print(f"    {agent:25s} {count:>5d}")
+        print()
+
+    if stats["skill_usage"]:
+        print("  Most used skills:")
+        for skill, count in list(stats["skill_usage"].items())[:20]:
+            last = stats["skill_last_used"].get(skill, "?")[:10]
+            print(f"    {skill:35s} {count:>5d}  (last: {last})")
+        print()
+
+    if stats["never_used"]:
+        print(f"  Never used ({stats['never_used_count']}):")
+        for name in stats["never_used"]:
+            print(f"    {name}")
+        print()
+
+
 # ── Main ────────────────────────────────────────────────────────────────────
 
 COMMANDS = {
@@ -738,6 +777,7 @@ COMMANDS = {
     "mcp": cmd_mcp,
     "connect": cmd_connect,
     "recommend": cmd_recommend,
+    "usage": cmd_usage,
     "score": cmd_score,
     "export": cmd_export,
     "install": cmd_install,
@@ -755,6 +795,7 @@ HELP_TEXT = {
     "mcp":       "Manage the Open Skills MCP Server",
     "connect":   "Register the MCP server into agent config files",
     "recommend": "Recommend skills for a task query",
+    "usage":     "Show skill usage analytics from MCP logs",
     "score":     "Compute the one-question test score (legacy)",
     "export":    "Generate platform adapter (legacy, use 'connect' for MCP)",
     "install":   "Install a skill into a platform (legacy, use 'connect' for MCP)",

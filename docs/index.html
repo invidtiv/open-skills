@@ -433,12 +433,12 @@
 <div class="hero">
   <h1>Open Skills</h1>
   <p class="tagline">The way you work should be yours, not rented back to you.</p>
-  <div class="version">Specification v3.2.0 &middot; CLI v3.2.0</div>
+  <div class="version">Specification v3.3.0 &middot; CLI v3.3.0</div>
   <div class="badges">
-    <span class="badge badge-green">85 skills validated</span>
+    <span class="badge badge-green">155 skills &middot; 30 categories</span>
     <span class="badge badge-blue">CLI + MCP + REST + Web UI</span>
     <span class="badge badge-purple">Semantic Recommend</span>
-    <span class="badge badge-orange">Agent Connect</span>
+    <span class="badge badge-orange">6 Agent Adapters</span>
   </div>
 </div>
 
@@ -453,10 +453,12 @@
     <a href="#one-question">One-Question Test</a>
     <a href="#cli">CLI Manual</a>
     <a href="#recommend">Recommend</a>
+    <a href="#categories">Categories</a>
     <a href="#connect">Agent Connect</a>
     <a href="#runbooks">Runbooks</a>
     <a href="#mcp">MCP Server</a>
     <a href="#webui">Web UI</a>
+    <a href="#analytics">Analytics</a>
     <a href="#extractor">Extractor</a>
     <a href="#api">API Reference</a>
   </div>
@@ -543,44 +545,52 @@
     <div class="card-grid">
       <div class="card">
         <div class="icon">&#x2699;&#xFE0F;</div>
-        <h4>core.py</h4>
-        <p>Shared logic hub: validation, frontmatter parsing, trigger matching, runbook state machine, skill resolution, semantic recommendation, agent MCP registration. Zero dependencies on any surface.</p>
+        <h4>core.py <span class="inline-code">1,801 lines</span></h4>
+        <p>Shared logic hub: validation, frontmatter parsing, trigger matching, runbook state machine, skill resolution, semantic recommendation, category management, agent MCP registration (JSON/TOML/YAML), usage analytics.</p>
       </div>
       <div class="card">
         <div class="icon">&#x1F4BB;</div>
-        <h4>openskills.py (CLI)</h4>
-        <p>Shell interface for init, validate, test, list, add, extract, recommend, connect. Also contains the LLM extraction pipeline via OpenRouter.</p>
+        <h4>openskills.py <span class="inline-code">820 lines</span></h4>
+        <p>Shell interface for init, validate, test, list, add, extract, recommend, connect, usage. Also contains the LLM extraction pipeline via OpenRouter.</p>
       </div>
       <div class="card">
         <div class="icon">&#x1F310;</div>
-        <h4>server.py (REST API)</h4>
-        <p>FastAPI backend wrapping core.py as REST endpoints. Serves the React SPA. Supports optional token authentication.</p>
+        <h4>server.py <span class="inline-code">711 lines</span></h4>
+        <p>FastAPI backend wrapping core.py as REST. 30+ endpoints including categories and usage analytics. Serves the React SPA. Token auth optional.</p>
       </div>
       <div class="card">
         <div class="icon">&#x1F50C;</div>
-        <h4>mcp_server.py (MCP)</h4>
-        <p>Model Context Protocol server exposing skills as tools, resources, and prompts. Includes semantic skill recommendation and context-mode injection.</p>
+        <h4>mcp_server.py <span class="inline-code">361 lines</span></h4>
+        <p>Model Context Protocol server exposing skills as tools, resources, and prompts. Logs all tool calls with agent identity tracking. Semantic recommendation and context-mode injection.</p>
       </div>
     </div>
 
-    <h3>Platform Adapters</h3>
-    <p>Each skill can have platform-specific adapter wrappers in its <span class="inline-code">adapters/</span> directory. Supported platforms:</p>
+    <h3>Agent Adapters</h3>
+    <p>The <span class="inline-code">connect</span> command registers the Open Skills MCP server into any supported agent's config file. Supports JSON, TOML, and YAML config formats with text-based manipulation that preserves comments.</p>
     <div class="card-grid">
       <div class="card">
-        <h4>Hermes</h4>
-        <p>hermes.md</p>
-      </div>
-      <div class="card">
         <h4>Claude Code</h4>
-        <p>claude-code.md</p>
+        <p><span class="inline-code">~/.mcp.json</span> (JSON)</p>
       </div>
       <div class="card">
         <h4>Cursor</h4>
-        <p>cursor.md</p>
+        <p><span class="inline-code">.cursor/mcp.json</span> (JSON)</p>
+      </div>
+      <div class="card">
+        <h4>Windsurf / Devin</h4>
+        <p><span class="inline-code">~/.codeium/windsurf/mcp_config.json</span> (JSON)</p>
       </div>
       <div class="card">
         <h4>Codex</h4>
-        <p>codex.md</p>
+        <p><span class="inline-code">~/.codex/config.toml</span> (TOML)</p>
+      </div>
+      <div class="card">
+        <h4>Hermes</h4>
+        <p><span class="inline-code">~/.hermes/config.yaml</span> (YAML)</p>
+      </div>
+      <div class="card">
+        <h4>Kimi</h4>
+        <p><span class="inline-code">~/.kimi/mcp.json</span> (JSON)</p>
       </div>
     </div>
     <p>Adapters are optional and auto-generated on export. The core <span class="inline-code">skill.md</span> remains platform-agnostic.</p>
@@ -594,32 +604,43 @@
     <p class="lead">Predictable file hierarchies binding skills globally or locally to your repository.</p>
 
     <h3>Global Scope</h3>
-    <p>Lives in your user configuration directory at <span class="inline-code">~/.config/open-skills/</span>. These skills are bound to your user session across all projects.</p>
+    <p>Lives in your user configuration directory at <span class="inline-code">~/.config/open-skills/</span>. These skills are bound to your user session across all projects. Skills can be organized into category folders with a <span class="inline-code">DESCRIPTION.md</span> at each category root.</p>
     <div class="tree">
 ~/.config/open-skills/
 ├── <span class="dir">skills/</span>
-│   ├── <span class="dir">personal-voice/</span>
-│   │   ├── <span class="file">skill.md</span>
-│   │   ├── <span class="dir">tests/</span>
-│   │   │   └── <span class="file">test_basic.py</span>
-│   │   └── <span class="dir">adapters/</span>
-│   │       ├── <span class="file">hermes.md</span>
-│   │       └── <span class="file">claude-code.md</span>
-│   └── <span class="dir">current-search/</span>
-│       └── <span class="file">skill.md</span>
-└── <span class="dir">runbooks/</span>
-    └── <span class="file">content-pipeline.md</span>
+│   ├── <span class="dir">frontend/</span>                 <span class="comment">&lt;-- category folder</span>
+│   │   ├── <span class="file">DESCRIPTION.md</span>        <span class="comment">&lt;-- category metadata</span>
+│   │   ├── <span class="dir">accessibility/</span>
+│   │   │   └── <span class="file">SKILL.md</span>
+│   │   ├── <span class="dir">gsap-core/</span>
+│   │   │   └── <span class="file">SKILL.md</span>
+│   │   └── <span class="dir">shadcn/</span>
+│   │       └── <span class="file">SKILL.md</span>
+│   ├── <span class="dir">creative/</span>
+│   │   ├── <span class="file">DESCRIPTION.md</span>
+│   │   ├── <span class="dir">excalidraw/</span>
+│   │   │   └── <span class="file">SKILL.md</span>
+│   │   └── <span class="dir">manim-video/</span>
+│   │       └── <span class="file">SKILL.md</span>
+│   └── <span class="dir">standalone-skill/</span>        <span class="comment">&lt;-- uncategorized skill</span>
+│       └── <span class="file">SKILL.md</span>
+├── <span class="dir">runbooks/</span>
+│   └── <span class="file">content-pipeline.md</span>
+└── <span class="dir">logs/</span>
+    └── <span class="file">mcp_usage.jsonl</span>           <span class="comment">&lt;-- MCP usage log</span>
     </div>
 
     <h3>Local Scope</h3>
-    <p>Lives inside your active project repository at <span class="inline-code">.open-skills/</span>. These skills are checked into git and shared across teammates working on the project.</p>
+    <p>Lives inside your active project repository at <span class="inline-code">.open-skills/</span>. These skills are checked into git and shared across teammates working on the project. Category folders work identically to global scope.</p>
     <div class="tree">
 your-project-repo/.open-skills/
 ├── <span class="dir">skills/</span>
-│   ├── <span class="dir">browser-qa/</span>
-│   │   └── <span class="file">skill.md</span>
-│   └── <span class="dir">db-migration/</span>
-│       └── <span class="file">skill.md</span>
+│   ├── <span class="dir">pending-review/</span>
+│   │   ├── <span class="file">DESCRIPTION.md</span>
+│   │   └── <span class="dir">new-workflow/</span>
+│   │       └── <span class="file">SKILL.md</span>
+│   └── <span class="dir">browser-qa/</span>
+│       └── <span class="file">SKILL.md</span>
 └── <span class="dir">runbooks/</span>
     └── <span class="file">deploy-pipeline.md</span>
     </div>
@@ -789,6 +810,55 @@ my-skill/
     <h2><span class="num">06</span>The One-Question Test</h2>
     <div class="one-q">
       <p class="quote">If I deleted this app tomorrow, how long would it take me to rebuild this workflow somewhere else?</p>
+    </div>
+  </div>
+</section>
+
+<!-- ═══ 6b. CATEGORIES ═══ -->
+<section id="categories">
+  <div class="container">
+    <h2><span class="num">06b</span>Skill Categories</h2>
+    <p class="lead">Organize skills into browsable groups using folder structure and <span class="inline-code">DESCRIPTION.md</span> metadata.</p>
+
+    <p>Categories are directory-level groupings inside the <span class="inline-code">skills/</span> folder. A directory is recognized as a category when it contains a <span class="inline-code">DESCRIPTION.md</span> and subdirectories with <span class="inline-code">SKILL.md</span> files. Skill names remain globally unique &mdash; categories are purely organizational.</p>
+
+    <h3>DESCRIPTION.md Format</h3>
+    <pre class="code-block"><code>---
+name: creative
+description: "Creative tools &mdash; ASCII art, Manim, ComfyUI, Excalidraw, design, music"
+---</code></pre>
+
+    <h3>Managing Categories</h3>
+    <div class="terminal-output">
+<span class="prompt">$</span> <span class="hi">curl</span> http://localhost:8001/api/categories
+<span class="dim">{"categories": [{"name": "frontend", "skill_count": 24, ...}, ...]}</span>
+
+<span class="prompt">$</span> <span class="hi">curl</span> -X POST http://localhost:8001/api/categories \
+    -d '{"name": "my-category", "description": "Custom group"}'
+
+<span class="prompt">$</span> <span class="hi">curl</span> -X POST http://localhost:8001/api/skills/my-skill/move \
+    -d '{"category": "my-category"}'
+    </div>
+
+    <h3>GitHub Import Auto-Categorization</h3>
+    <p>When importing skills from GitHub, the repository owner becomes the category name automatically. Importing <span class="inline-code">owner/repo</span> places skills under <span class="inline-code">skills/owner/</span> with an auto-generated <span class="inline-code">DESCRIPTION.md</span>.</p>
+
+    <h3>Current Library (30 categories, 155 skills)</h3>
+    <div class="card-grid">
+      <div class="card"><h4>frontend</h4><p>24 skills &mdash; React, Next.js, GSAP, CSS, accessibility</p></div>
+      <div class="card"><h4>creative</h4><p>16 skills &mdash; ASCII art, Manim, ComfyUI, Excalidraw, design</p></div>
+      <div class="card"><h4>devtools</h4><p>14 skills &mdash; agents, automation, scraping, workflows</p></div>
+      <div class="card"><h4>content</h4><p>9 skills &mdash; marketing, SEO, copywriting, media</p></div>
+      <div class="card"><h4>software-development</h4><p>9 skills &mdash; TDD, debugging, code review, planning</p></div>
+      <div class="card"><h4>productivity</h4><p>8 skills &mdash; Office, Google Workspace, Notion, OCR</p></div>
+      <div class="card"><h4>ai-apis</h4><p>7 skills &mdash; Gemini, Vertex AI, prompt engineering</p></div>
+      <div class="card"><h4>mlops</h4><p>7 skills &mdash; HuggingFace, vLLM, llama.cpp, W&amp;B</p></div>
+      <div class="card"><h4>github</h4><p>6 skills &mdash; PRs, issues, auth, code review</p></div>
+      <div class="card"><h4>documentation</h4><p>5 skills &mdash; Obsidian, KnowledgeForge, consolidation</p></div>
+      <div class="card"><h4>design</h4><p>5 skills &mdash; diagrams, plots, visual generation</p></div>
+      <div class="card"><h4>research</h4><p>5 skills &mdash; arXiv, Polymarket, paper writing</p></div>
+      <div class="card"><h4>paperclip</h4><p>5 skills &mdash; agent platform, plugins, tasks</p></div>
+      <div class="card"><h4>+ 17 more</h4><p>autonomous-ai-agents, backend, communication, media, ops, security, fun&hellip;</p></div>
     </div>
   </div>
 </section>
@@ -989,28 +1059,22 @@ Detected Agents (4 registered):
     <p class="lead">Register the Open Skills MCP server into agent config files &mdash; idempotently, with backups and dry-run support.</p>
 
     <h3>Supported Agents</h3>
-    <div class="card-grid">
-      <div class="card">
-        <div class="icon">&#x1F4BB;</div>
-        <h4>Cursor</h4>
-        <p><span class="inline-code">~/.cursor/mcp.json</span></p>
-      </div>
-      <div class="card">
-        <div class="icon">&#x1F4AC;</div>
-        <h4>Claude Code</h4>
-        <p><span class="inline-code">~/.claude/claude_desktop_config.json</span></p>
-      </div>
-      <div class="card">
-        <div class="icon">&#x2699;&#xFE0F;</div>
-        <h4>devin</h4>
-        <p><span class="inline-code">~/.codeium/devin/mcp_config.json</span></p>
-      </div>
-      <div class="card">
-        <div class="icon">&#x1F50C;</div>
-        <h4>Codex</h4>
-        <p><span class="inline-code">~/.codex/mcp_config.json</span></p>
-      </div>
+    <div class="table-wrap">
+      <table>
+        <thead>
+          <tr><th>Agent</th><th>Config Path</th><th>Format</th></tr>
+        </thead>
+        <tbody>
+          <tr><td>Claude Code</td><td><span class="inline-code">~/.mcp.json</span></td><td>JSON</td></tr>
+          <tr><td>Cursor</td><td><span class="inline-code">~/.cursor/mcp.json</span></td><td>JSON</td></tr>
+          <tr><td>Windsurf / Devin</td><td><span class="inline-code">~/.codeium/windsurf/mcp_config.json</span></td><td>JSON</td></tr>
+          <tr><td>Codex</td><td><span class="inline-code">~/.codex/config.toml</span></td><td>TOML</td></tr>
+          <tr><td>Hermes</td><td><span class="inline-code">~/.hermes/config.yaml</span></td><td>YAML</td></tr>
+          <tr><td>Kimi</td><td><span class="inline-code">~/.kimi/mcp.json</span></td><td>JSON</td></tr>
+        </tbody>
+      </table>
     </div>
+    <p>Config manipulation is text-based (append/remove sections) rather than full parse-serialize, which preserves existing comments and formatting in TOML and YAML files.</p>
 
     <h3>CLI Options</h3>
     <div class="table-wrap">
@@ -1188,6 +1252,55 @@ INFO:     Uvicorn running on http://0.0.0.0:8001
   </div>
 </section>
 
+<!-- ═══ 10b. USAGE ANALYTICS ═══ -->
+<section id="analytics">
+  <div class="container">
+    <h2><span class="num">10b</span>Usage Analytics</h2>
+    <p class="lead">Track which skills are used, by whom, and how often &mdash; so you can prune unused skills and understand your library's value.</p>
+
+    <p>Every MCP tool call is logged to <span class="inline-code">~/.config/open-skills/logs/mcp_usage.jsonl</span> as a structured JSON line with:</p>
+    <ul>
+      <li><strong>Timestamp</strong> &mdash; ISO 8601 UTC</li>
+      <li><strong>Tool name</strong> &mdash; which MCP tool was called (recommend_skills, get_skill, check_triggers, etc.)</li>
+      <li><strong>Arguments</strong> &mdash; query text, skill name, parameters</li>
+      <li><strong>Skill name</strong> &mdash; which skill was loaded (for get_skill calls)</li>
+      <li><strong>Agent identity</strong> &mdash; name and version from MCP <span class="inline-code">clientInfo</span> (if the agent populates it)</li>
+      <li><strong>Duration</strong> &mdash; milliseconds per call</li>
+    </ul>
+
+    <h3>CLI Usage</h3>
+    <div class="terminal-output">
+<span class="prompt">$</span> openskills usage          <span class="dim"># last 90 days (default)</span>
+<span class="prompt">$</span> openskills usage 365      <span class="dim"># full year</span>
+
+<span class="hi">  Skill Usage Analytics &mdash; last 90 days</span>
+
+  Total MCP tool calls: 347
+  Total skills: 155
+  Never used: 42
+
+  <span class="ok">Most used skills:</span>
+    graphify                              47  (last: 2026-06-20)
+    backend-python                        31  (last: 2026-06-23)
+    gsap-core                             28  (last: 2026-06-22)
+
+  <span class="warn">Never used (42):</span>
+    ascii-video
+    baoyu-infographic
+    ...
+    </div>
+
+    <h3>REST API</h3>
+    <pre class="code-block"><code>GET /api/usage?days=90</code></pre>
+    <p>Returns JSON with <span class="inline-code">tool_breakdown</span>, <span class="inline-code">skill_usage</span>, <span class="inline-code">skill_last_used</span>, <span class="inline-code">agent_breakdown</span>, <span class="inline-code">never_used</span>, and <span class="inline-code">total_skills</span>.</p>
+
+    <div class="callout info">
+      <p class="title">Agent Identity</p>
+      <p>Agent identity is captured from the MCP <span class="inline-code">clientInfo</span> field during the initialize handshake. Not all agents populate this &mdash; when absent, calls are logged without an agent name. This is a nice-to-have for the analytics breakdown, not a requirement.</p>
+    </div>
+  </div>
+</section>
+
 <!-- ═══ 11. EXTRACTOR ═══ -->
 <section id="extractor">
   <div class="container">
@@ -1249,8 +1362,22 @@ Calling OpenRouter API to extract repeatable procedures...
           <tr><td>POST</td><td><span class="inline-code">/api/skills/import-github</span></td><td>Import a skill from a GitHub repository</td></tr>
           <tr><td>POST</td><td><span class="inline-code">/api/skills/extract</span></td><td>Extract a skill from the latest chat session</td></tr>
           <tr><td>POST</td><td><span class="inline-code">/api/skills/recommend</span></td><td>Recommend skills for a task query</td></tr>
+          <tr><td>POST</td><td><span class="inline-code">/api/skills/{name}/move</span></td><td>Move a skill into a category</td></tr>
           <tr><td>GET</td><td><span class="inline-code">/api/skills/{name}/files</span></td><td>List files in a skill directory</td></tr>
           <tr><td>GET</td><td><span class="inline-code">/api/skills/{name}/files/{path}</span></td><td>Read a file from a skill directory</td></tr>
+        </tbody>
+      </table>
+    </div>
+
+    <h3>Categories</h3>
+    <div class="table-wrap">
+      <table>
+        <thead>
+          <tr><th>Method</th><th>Path</th><th>Description</th></tr>
+        </thead>
+        <tbody>
+          <tr><td>GET</td><td><span class="inline-code">/api/categories</span></td><td>List all categories with skill counts</td></tr>
+          <tr><td>POST</td><td><span class="inline-code">/api/categories</span></td><td>Create a new category</td></tr>
         </tbody>
       </table>
     </div>
@@ -1288,13 +1415,25 @@ Calling OpenRouter API to extract repeatable procedures...
         </tbody>
       </table>
     </div>
+
+    <h3>Analytics</h3>
+    <div class="table-wrap">
+      <table>
+        <thead>
+          <tr><th>Method</th><th>Path</th><th>Description</th></tr>
+        </thead>
+        <tbody>
+          <tr><td>GET</td><td><span class="inline-code">/api/usage?days=90</span></td><td>Skill usage statistics (tool/skill/agent breakdowns, never-used list)</td></tr>
+        </tbody>
+      </table>
+    </div>
   </div>
 </section>
 
 <!-- ═══ FOOTER ═══ -->
 <footer>
   <div class="container">
-    <p><strong>Open Skills</strong> &mdash; Specification v3.2.0 &middot; CLI v3.2.0 &middot; MIT License</p>
+    <p><strong>Open Skills</strong> &mdash; Specification v3.3.0 &middot; CLI v3.3.0 &middot; MIT License</p>
     <p style="margin-top:8px;">Your skills belong to you. The format belongs to everyone.</p>
     <p style="margin-top:16px; font-style:italic;">The pain is already here, but so is the fix, and it is closer than it looks.<br>You do not need a new platform or a new subscription. You need to own the way you already work and make it move with you.</p>
   </div>

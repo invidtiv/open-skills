@@ -1,4 +1,4 @@
-import { useState, useEffect } from 'react'
+import { useState, useEffect, type ReactNode } from 'react'
 import { useParams, useNavigate, Link } from 'react-router-dom'
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query'
 import { getSkill, saveSkillStructured, deleteSkill, validateSkill, suggestFix, listSkillFiles, readSkillFile } from '../api'
@@ -7,6 +7,105 @@ import FrontmatterForm from '../components/FrontmatterForm'
 import ValidationPanel from '../components/ValidationPanel'
 import FileTree from '../components/FileTree'
 import type { ValidationResult, SkillFile } from '../types'
+
+// Lightweight markdown-to-JSX renderer for the body preview. Intentionally
+// simple — handles headings, lists, checkboxes, fenced code, and paragraphs.
+function renderMarkdown(md: string): ReactNode[] {
+  const lines = md.split('\n')
+  const elements: ReactNode[] = []
+  let listItems: ReactNode[] = []
+  let paraLines: string[] = []
+  let key = 0
+  let i = 0
+
+  const flushList = () => {
+    if (listItems.length) {
+      elements.push(
+        <ul key={key++} className="my-2 pl-5 space-y-1">{listItems}</ul>
+      )
+      listItems = []
+    }
+  }
+  const flushPara = () => {
+    if (paraLines.length) {
+      elements.push(
+        <p key={key++} className="my-2 text-sm text-text leading-relaxed">{paraLines.join(' ')}</p>
+      )
+      paraLines = []
+    }
+  }
+
+  while (i < lines.length) {
+    const line = lines[i]
+
+    // Fenced code block
+    if (line.trim().startsWith('```')) {
+      flushPara(); flushList()
+      const code: string[] = []
+      i++
+      while (i < lines.length && !lines[i].trim().startsWith('```')) {
+        code.push(lines[i]); i++
+      }
+      i++ // skip closing fence
+      elements.push(
+        <pre key={key++} className="my-2 bg-bg-code border border-border rounded-lg p-3 text-xs text-text-dim overflow-x-auto">{code.join('\n')}</pre>
+      )
+      continue
+    }
+
+    // Headings (# .. ####)
+    const heading = line.match(/^(#{1,4})\s+(.*)$/)
+    if (heading) {
+      flushPara(); flushList()
+      const level = heading[1].length
+      const Tag = (`h${level}`) as 'h1' | 'h2' | 'h3' | 'h4'
+      const sizeCls = level === 1 ? 'text-xl' : level === 2 ? 'text-lg' : level === 3 ? 'text-base' : 'text-sm'
+      elements.push(
+        <Tag key={key++} className={`${sizeCls} font-semibold text-text mt-4 mb-2`}>{heading[2]}</Tag>
+      )
+      i++
+      continue
+    }
+
+    // List items + checkboxes
+    const listMatch = line.match(/^\s*-\s+(.*)$/)
+    if (listMatch) {
+      flushPara()
+      const content = listMatch[1]
+      const checkbox = content.match(/^\[([ xX])\]\s+(.*)$/)
+      if (checkbox) {
+        const checked = checkbox[1].toLowerCase() === 'x'
+        listItems.push(
+          <li key={key++} className="list-none -ml-5 flex items-center gap-2 text-sm text-text">
+            <input type="checkbox" checked={checked} readOnly className="accent-accent" />
+            <span className={checked ? 'text-text-dim line-through' : ''}>{checkbox[2]}</span>
+          </li>
+        )
+      } else {
+        listItems.push(
+          <li key={key++} className="list-disc text-sm text-text">{content}</li>
+        )
+      }
+      i++
+      continue
+    }
+
+    // Blank line — paragraph/list boundary
+    if (line.trim() === '') {
+      flushPara(); flushList()
+      i++
+      continue
+    }
+
+    // Regular paragraph text
+    flushList()
+    paraLines.push(line)
+    i++
+  }
+
+  flushPara(); flushList()
+  return elements
+}
 
 export default function SkillDetailPage() {
   const { name } = useParams<{ name: string }>()
@@ -33,6 +132,8 @@ export default function SkillDetailPage() {
   const [validating, setValidating] = useState(false)
   const [selectedFile, setSelectedFile] = useState<string | null>(null)
   const [fileContent, setFileContent] = useState<string | null>(null)
+  const [showDeleteConfirm, setShowDeleteConfirm] = useState(false)
+  const [bodyTab, setBodyTab] = useState<'edit' | 'preview'>('edit')
 
   const skillName = skill?.frontmatter?.name as string | undefined
   useEffect(() => {
@@ -41,9 +142,34 @@ export default function SkillDetailPage() {
       setBody(skill.body)
       setDirty(false)
       setValidation(null)
+      setBodyTab('edit')
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [skillName, name])
+
+  // Warn on browser close/refresh while there are unsaved changes.
+  useEffect(() => {
+    if (!dirty) return
+    const handler = (e: BeforeUnloadEvent) => {
+      e.preventDefault()
+      e.returnValue = ''
+    }
+    window.addEventListener('beforeunload', handler)
+    return () => window.removeEventListener('beforeunload', handler)
+  }, [dirty])
+
+  const handleValidate = async () => {
+    if (!name) return
+    setValidating(true)
+    try {
+      const result = await validateSkill(name)
+      setValidation(result)
+    } catch (err) {
+      toast(err instanceof Error ? err.message : 'Validation failed', 'error')
+    } finally {
+      setValidating(false)
+    }
+  }
 
   const saveMutation = useMutation({
     mutationFn: () => saveSkillStructured(name!, frontmatter, body),
@@ -52,6 +178,8 @@ export default function SkillDetailPage() {
       queryClient.invalidateQueries({ queryKey: ['skills'] })
       setDirty(false)
       toast('Skill saved', 'success')
+      // If validation was already run, re-run it so stale errors don't linger.
+      if (validation !== null) handleValidate()
     },
     onError: (err: Error) => toast(err.message, 'error'),
   })
@@ -66,17 +194,9 @@ export default function SkillDetailPage() {
     onError: (err: Error) => toast(err.message, 'error'),
   })
 
-  const handleValidate = async () => {
-    if (!name) return
-    setValidating(true)
-    try {
-      const result = await validateSkill(name)
-      setValidation(result)
-    } catch (err) {
-      toast(err instanceof Error ? err.message : 'Validation failed', 'error')
-    } finally {
-      setValidating(false)
-    }
+  const handleBack = () => {
+    if (dirty && !confirm('You have unsaved changes. Leave without saving?')) return
+    navigate('/')
   }
 
   const handleSuggestFix = async () => {
@@ -126,7 +246,7 @@ export default function SkillDetailPage() {
       {/* Toolbar */}
       <div className="flex items-center justify-between px-6 py-3 border-b border-border bg-bg-card">
         <div className="flex items-center gap-3">
-          <Link to="/" className="text-text-dim hover:text-text text-sm">&larr; Skills</Link>
+          <button onClick={handleBack} className="text-text-dim hover:text-text text-sm">&larr; Skills</button>
           <span className="text-border">/</span>
           <h2 className="font-semibold">{skill.frontmatter.name as string || name}</h2>
           <span className={`text-xs font-mono px-2 py-0.5 rounded ${
@@ -154,7 +274,7 @@ export default function SkillDetailPage() {
             {saveMutation.isPending ? 'Saving...' : 'Save'}
           </button>
           <button
-            onClick={() => { if (confirm(`Delete skill '${name}'?`)) deleteMutation.mutate() }}
+            onClick={() => setShowDeleteConfirm(true)}
             className="px-3 py-1.5 text-xs font-medium bg-red/10 border border-red/30 rounded-lg text-red hover:bg-red/20 transition-colors"
           >
             Delete
@@ -174,13 +294,41 @@ export default function SkillDetailPage() {
             />
           </div>
           <div className="flex-1 flex flex-col p-5">
-            <h3 className="text-xs font-medium text-text-dim uppercase tracking-wider mb-3">Body (Markdown)</h3>
-            <textarea
-              value={body}
-              onChange={e => { setBody(e.target.value); setDirty(true) }}
-              className="flex-1 w-full bg-bg-code border border-border rounded-lg p-4 text-sm text-text leading-relaxed resize-none focus:border-accent focus:outline-none min-h-64"
-              spellCheck={false}
-            />
+            <div className="flex items-center justify-between mb-3">
+              <h3 className="text-xs font-medium text-text-dim uppercase tracking-wider">Body (Markdown)</h3>
+              <div className="flex gap-1 bg-bg-code border border-border rounded-lg p-0.5">
+                <button
+                  onClick={() => setBodyTab('edit')}
+                  className={`px-3 py-1 text-xs font-medium rounded-md transition-colors ${
+                    bodyTab === 'edit' ? 'bg-accent/15 text-accent' : 'text-text-dim hover:text-text'
+                  }`}
+                >
+                  Edit
+                </button>
+                <button
+                  onClick={() => setBodyTab('preview')}
+                  className={`px-3 py-1 text-xs font-medium rounded-md transition-colors ${
+                    bodyTab === 'preview' ? 'bg-accent/15 text-accent' : 'text-text-dim hover:text-text'
+                  }`}
+                >
+                  Preview
+                </button>
+              </div>
+            </div>
+            {bodyTab === 'edit' ? (
+              <textarea
+                value={body}
+                onChange={e => { setBody(e.target.value); setDirty(true) }}
+                className="flex-1 w-full bg-bg-code border border-border rounded-lg p-4 text-sm text-text leading-relaxed resize-none focus:border-accent focus:outline-none min-h-64"
+                spellCheck={false}
+              />
+            ) : (
+              <div className="prose flex-1 w-full bg-bg-code border border-border rounded-lg p-4 overflow-y-auto min-h-64 text-text">
+                {body.trim()
+                  ? renderMarkdown(body)
+                  : <p className="text-sm text-text-dim">Nothing to preview.</p>}
+              </div>
+            )}
           </div>
         </div>
 
@@ -216,6 +364,35 @@ export default function SkillDetailPage() {
           </div>
         </div>
       </div>
+
+      {/* Themed delete confirmation dialog */}
+      {showDeleteConfirm && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60">
+          <div className="w-full max-w-sm mx-4 bg-bg-card border border-border rounded-lg p-5 shadow-xl">
+            <h3 className="text-sm font-semibold text-text mb-2">Delete skill</h3>
+            <p className="text-sm text-text-dim mb-5">
+              Are you sure you want to delete{' '}
+              <span className="font-mono text-text">{skill.frontmatter.name as string || name}</span>?
+              This cannot be undone.
+            </p>
+            <div className="flex justify-end gap-2">
+              <button
+                onClick={() => setShowDeleteConfirm(false)}
+                className="px-3 py-1.5 text-xs font-medium bg-bg-code border border-border rounded-lg text-text-dim hover:text-text transition-colors"
+              >
+                Cancel
+              </button>
+              <button
+                onClick={() => { setShowDeleteConfirm(false); deleteMutation.mutate() }}
+                disabled={deleteMutation.isPending}
+                className="px-3 py-1.5 text-xs font-medium bg-red/10 border border-red/30 rounded-lg text-red hover:bg-red/20 transition-colors disabled:opacity-50"
+              >
+                {deleteMutation.isPending ? 'Deleting...' : 'Delete'}
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   )
 }

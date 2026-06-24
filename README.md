@@ -11,22 +11,33 @@ To prevent procedural drift, skills follow a strict, predictable file hierarchy.
 ### Global Scope (Lives in `~/.config/open-skills/`)
 ```
 ├── skills/
-│   ├── personal-voice/
-│   │   ├── skill.md
-│   │   └── voice-samples/
-│   └── current-search/
-│       └── skill.md
-└── runbooks/
-    └── content-pipeline.md
+│   ├── frontend/              # category folder
+│   │   ├── DESCRIPTION.md     # category metadata
+│   │   ├── accessibility/
+│   │   │   └── SKILL.md
+│   │   └── gsap-core/
+│   │       └── SKILL.md
+│   ├── creative/
+│   │   ├── DESCRIPTION.md
+│   │   └── excalidraw/
+│   │       └── SKILL.md
+│   └── standalone-skill/      # uncategorized skill
+│       └── SKILL.md
+├── runbooks/
+│   └── content-pipeline.md
+└── logs/
+    └── mcp_usage.jsonl        # MCP usage log
 ```
 
 ### Local Scope (Lives in `your-project-repo/.open-skills/`)
 ```
 ├── skills/
-│   ├── browser-qa/
-│   │   └── skill.md
-│   └── db-migration/
-│       └── skill.md
+│   ├── pending-review/
+│   │   ├── DESCRIPTION.md
+│   │   └── new-workflow/
+│   │       └── SKILL.md
+│   └── browser-qa/
+│       └── SKILL.md
 └── runbooks/
     └── release-day.md
 ```
@@ -181,7 +192,53 @@ python3 openskills.py connect --cursor --uninstall
 python3 openskills.py connect --cursor --scope local
 ```
 
-Supported agents: Cursor, Claude Code, devin, Codex. The `connect` command is idempotent — re-running it updates the entry without disturbing other servers. A timestamped `.bak` backup is created before the first write to any file.
+Supported agents: Claude Code, Cursor, Windsurf/Devin, Codex (TOML), Hermes (YAML), Kimi. The `connect` command is idempotent — re-running it updates the entry without disturbing other servers. Config manipulation is text-based to preserve comments. A timestamped `.bak` backup is created before the first write to any file.
+
+---
+
+## Skill Categories
+
+Skills can be organized into category folders for better browsing and discovery. A directory is a category when it contains `DESCRIPTION.md` and subdirectories with `SKILL.md` files.
+
+```yaml
+# DESCRIPTION.md
+---
+name: creative
+description: "Creative tools — ASCII art, Manim, ComfyUI, Excalidraw, design, music"
+---
+```
+
+```bash
+# View categories
+curl http://localhost:8001/api/categories
+
+# Create a category
+curl -X POST http://localhost:8001/api/categories \
+  -d '{"name": "my-category", "description": "Custom group"}'
+
+# Move a skill into a category
+curl -X POST http://localhost:8001/api/skills/my-skill/move \
+  -d '{"category": "my-category"}'
+```
+
+GitHub imports automatically use the repository owner as the category name.
+
+---
+
+## Usage Analytics
+
+Every MCP tool call is logged to `~/.config/open-skills/logs/mcp_usage.jsonl` with timestamp, tool name, skill name, agent identity (from MCP `clientInfo`), and duration.
+
+```bash
+# CLI — show usage stats
+python3 openskills.py usage         # last 90 days
+python3 openskills.py usage 365     # full year
+
+# REST API
+curl http://localhost:8001/api/usage?days=90
+```
+
+Use this to identify unused skills over time and keep your library lean.
 
 ---
 
@@ -288,8 +345,12 @@ When enabled, all API requests must include an `Authorization: Bearer <token>` h
 | POST | `/api/skills/add` | Import an external skill directory |
 | POST | `/api/skills/extract` | Extract a skill from last chat session |
 | POST | `/api/skills/recommend` | Recommend skills for a task query |
+| POST | `/api/skills/{name}/move` | Move a skill into a category |
 | GET | `/api/skills/{name}/files` | List files in a skill directory |
 | GET | `/api/skills/{name}/files/{path}` | Read a file from a skill directory |
+| GET | `/api/categories` | List all categories with skill counts |
+| POST | `/api/categories` | Create a new category |
+| GET | `/api/usage?days=N` | Skill usage analytics |
 | GET | `/api/agents` | List detected agents and install status |
 | POST | `/api/agents/{id}/connect` | Register MCP server into an agent |
 | POST | `/api/agents/{id}/disconnect` | Remove Open Skills entry from an agent |

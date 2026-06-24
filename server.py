@@ -64,6 +64,7 @@ class ImportGithubRequest(BaseModel):
     url: str
     scope: str = "global"
     subdir: str = ""
+    category: str = ""
 
 class RecommendRequest(BaseModel):
     query: str
@@ -120,6 +121,7 @@ def list_skills():
             {
                 "name": s["name"],
                 "scope": s["scope"],
+                "category": s.get("category", ""),
                 "path": str(s["path"]),
                 "description": s["description"],
                 "triggers": [str(t) if not isinstance(t, str) else t for t in (s["triggers"] or [])],
@@ -129,10 +131,67 @@ def list_skills():
                 "disable_model_invocation": s.get("disable_model_invocation", False),
                 "user_invocable": s.get("user_invocable", True),
             }
-            for s in sorted(skills, key=lambda x: x["name"])
+            for s in sorted(skills, key=lambda x: (x.get("category", ""), x["name"]))
         ],
         "shadowed": shadowed,
     }
+
+
+@app.get("/api/categories")
+def list_categories():
+    return {"categories": core.get_all_categories()}
+
+
+class MoveSkillRequest(BaseModel):
+    category: str
+    scope: str = "global"
+
+
+@app.post("/api/skills/{name}/move")
+def move_skill(name: str, req: MoveSkillRequest):
+    result = core.move_skill_to_category(name, req.category, req.scope)
+    if result["action"] == "failed":
+        raise HTTPException(400, result["error"])
+    return result
+
+
+class PromoteSkillRequest(BaseModel):
+    category: str = ""
+
+
+@app.post("/api/skills/{name}/promote")
+def promote_skill(name: str, req: PromoteSkillRequest):
+    result = core.promote_skill(name, req.category)
+    if result["action"] == "failed":
+        raise HTTPException(400, result["error"])
+    return result
+
+
+class CreateCategoryRequest(BaseModel):
+    name: str
+    description: str = ""
+    scope: str = "global"
+
+
+@app.post("/api/categories")
+def create_category(req: CreateCategoryRequest):
+    result = core.create_category(req.name, req.description, req.scope)
+    if result["action"] == "failed":
+        raise HTTPException(400, result["error"])
+    return result
+
+
+class UpdateCategoryRequest(BaseModel):
+    new_name: str = ""
+    description: str | None = None
+
+
+@app.put("/api/categories/{name}")
+def update_category(name: str, req: UpdateCategoryRequest):
+    result = core.update_category(name, req.new_name, req.description)
+    if result["action"] == "failed":
+        raise HTTPException(400, result["error"])
+    return result
 
 
 @app.get("/api/skills/{name}")
@@ -404,10 +463,26 @@ def import_github(req: ImportGithubRequest):
             raise HTTPException(400, "Could not derive a valid skill name")
 
         base_dir = core.get_local_dir() if req.scope == "local" else core.get_global_dir()
-        target_dir = base_dir / "skills" / safe
+        cat_name = req.category or owner
+        try:
+            cat_slug = core.slugify(cat_name)
+        except ValueError:
+            cat_slug = re.sub(r"[^a-z0-9-]", "-", cat_name.lower()).strip("-")
+        cat_dir = base_dir / "skills" / cat_slug
+        target_dir = cat_dir / safe
 
         if target_dir.exists():
-            raise HTTPException(409, f"Skill '{safe}' already exists")
+            raise HTTPException(409, f"Skill '{safe}' already exists in category '{cat_slug}'")
+
+        cat_dir.mkdir(parents=True, exist_ok=True)
+
+        desc_path = cat_dir / core.DESCRIPTION_FILE
+        if not desc_path.exists():
+            source_url = f"https://github.com/{owner}/{repo}"
+            desc_path.write_text(
+                f"---\nname: {cat_slug}\n"
+                f"description: \"Skills imported from {source_url}\"\n---\n"
+            )
 
         shutil.rmtree(src / ".git", ignore_errors=True)
         target_dir.mkdir(parents=True)
@@ -416,6 +491,7 @@ def import_github(req: ImportGithubRequest):
         return {
             "name": safe,
             "scope": req.scope,
+            "category": cat_slug,
             "path": str(target_dir),
             "source": f"https://github.com/{owner}/{repo}" + (f"/tree/{branch}/{subdir}" if subdir else ""),
         }
@@ -620,6 +696,48 @@ def delete_runbook(name: str):
         raise HTTPException(403, "Cannot delete runbooks outside local or global scope directories")
     rb.unlink()
     return {"deleted": True, "name": name}
+
+
+# ── Usage Analytics ────────────────────────────────────────────────────────
+
+@app.get("/api/usage")
+def get_usage_stats(days: int = 90):
+    return core.get_usage_stats(days=days)
+
+
+# ── Trigger Check ─────────────────────────────────────────────────────────
+
+class TriggerCheckRequest(BaseModel):
+    prompt: str
+
+@app.post("/api/triggers/check")
+def check_triggers(req: TriggerCheckRequest):
+    matches = core.match_triggers(req.prompt)
+    return {
+        "matches": [
+            {"skill": m["name"], "trigger": m["matched_trigger"], "score": 1.0}
+            for m in matches
+        ]
+    }
+
+
+# ── Git Sync ──────────────────────────────────────────────────────────────
+
+@app.get("/api/git/status")
+def git_status():
+    return core.git_status()
+
+
+class GitCommitRequest(BaseModel):
+    message: str = ""
+
+
+@app.post("/api/git/push")
+def git_push(req: GitCommitRequest):
+    result = core.git_commit_and_push(req.message)
+    if result["action"] == "failed":
+        raise HTTPException(400, result["error"])
+    return result
 
 
 # ── Helpers ────────────────────────────────────────────────────────────────

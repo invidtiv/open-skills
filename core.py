@@ -16,6 +16,7 @@ import json
 import logging
 import os
 import re
+import subprocess
 import sys
 import tempfile
 import datetime
@@ -31,8 +32,8 @@ try:
 except ImportError:
     raise ImportError("PyYAML required: pip install pyyaml")
 
-VERSION = "3.2.0"
-SPEC_VERSION = "3.2.0"
+VERSION = "3.3.0"
+SPEC_VERSION = "3.3.0"
 
 logger = logging.getLogger("openskills")
 
@@ -233,21 +234,36 @@ def _safe_child(base: Path, name: str) -> Path:
 # ── Resolution ──────────────────────────────────────────────────────────────
 
 def resolve_skill(name: str) -> tuple[Optional[Path], Optional[Path]]:
-    """Find a skill by name. Checks local, then global, then direct path."""
+    """Find a skill by name. Checks flat, then inside categories, then direct path."""
     for scope_dir in [get_local_dir(), get_global_dir()]:
-        try:
-            skill_dir = _safe_child(scope_dir / "skills", name)
-        except ValueError:
+        skills_dir = scope_dir / "skills"
+        if not skills_dir.is_dir():
             continue
-        for fn in ["skill.md", "SKILL.md"]:
-            if (skill_dir / fn).exists():
-                return skill_dir, skill_dir / fn
+        try:
+            skill_dir = _safe_child(skills_dir, name)
+        except ValueError:
+            pass
+        else:
+            fp = find_skill_file(skill_dir)
+            if fp:
+                return skill_dir, fp
+
+        for cat in sorted(skills_dir.iterdir()):
+            if not cat.is_dir() or find_skill_file(cat):
+                continue
+            try:
+                skill_dir = _safe_child(cat, name)
+            except ValueError:
+                continue
+            fp = find_skill_file(skill_dir)
+            if fp:
+                return skill_dir, fp
 
     p = Path(name)
     if p.is_dir():
-        for fn in ["skill.md", "SKILL.md"]:
-            if (p / fn).exists():
-                return p, p / fn
+        fp = find_skill_file(p)
+        if fp:
+            return p, fp
 
     return None, None
 
@@ -312,6 +328,9 @@ def parse_frontmatter(text: str) -> tuple[dict, str]:
 
 # ── Skill Scanning ──────────────────────────────────────────────────────────
 
+DESCRIPTION_FILE = "DESCRIPTION.md"
+
+
 def find_skill_file(directory: Path) -> Optional[Path]:
     """Return the first skill markdown file in directory, or None."""
     for fn in ["skill.md", "SKILL.md"]:
@@ -321,8 +340,60 @@ def find_skill_file(directory: Path) -> Optional[Path]:
     return None
 
 
+def _is_category_dir(d: Path) -> bool:
+    """A directory is a category if it has no SKILL.md and either has DESCRIPTION.md or contains skill subdirs."""
+    if find_skill_file(d):
+        return False
+    if (d / DESCRIPTION_FILE).exists():
+        return True
+    return any(find_skill_file(sub) for sub in d.iterdir() if sub.is_dir())
+
+
+def _parse_description_md(path: Path) -> dict[str, str]:
+    """Parse a DESCRIPTION.md file and return {name, description}."""
+    if not path.exists():
+        return {}
+    content = path.read_text()
+    fm, body = parse_frontmatter(content)
+    return {
+        "name": fm.get("name", ""),
+        "description": fm.get("description", body.strip().split("\n")[0] if body.strip() else ""),
+    }
+
+
+def _load_skill_entry(item: Path, scope_name: str, category: str) -> Optional[dict[str, Any]]:
+    """Load a single skill directory into a metadata dict."""
+    fp = find_skill_file(item)
+    if not fp:
+        return None
+    try:
+        content = fp.read_text()
+        fm, body = parse_frontmatter(content)
+        return {
+            "name": fm.get("name", item.name),
+            "scope": scope_name,
+            "category": category,
+            "path": fp,
+            "description": fm.get("description", ""),
+            "triggers": fm.get("triggers", []),
+            "boundaries": fm.get("boundaries", []),
+            "required_tools": fm.get("required_tools", []),
+            "output_format": fm.get("output_format", ""),
+            "disable_model_invocation": fm.get("disable-model-invocation", False),
+            "user_invocable": fm.get("user-invocable", True),
+            "body": body,
+        }
+    except Exception as e:
+        logger.warning("Failed to load skill from %s: %s", fp, e)
+        return None
+
+
 def scan_skills(scope_dir: Path, scope_name: str) -> list[dict[str, Any]]:
-    """Scan a scope directory for skills and return metadata dicts."""
+    """Scan a scope directory for skills, supporting flat and categorized layouts.
+
+    Flat:        skills/<skill-name>/SKILL.md         → category=""
+    Categorized: skills/<category>/<skill-name>/SKILL.md → category="<category>"
+    """
     skills: list[dict[str, Any]] = []
     skills_dir = scope_dir / "skills"
     if not skills_dir.is_dir():
@@ -330,28 +401,52 @@ def scan_skills(scope_dir: Path, scope_name: str) -> list[dict[str, Any]]:
     for item in sorted(skills_dir.iterdir()):
         if not item.is_dir():
             continue
-        fp = find_skill_file(item)
-        if not fp:
-            continue
-        try:
-            content = fp.read_text()
-            fm, body = parse_frontmatter(content)
-            skills.append({
-                "name": fm.get("name", item.name),
-                "scope": scope_name,
-                "path": fp,
-                "description": fm.get("description", ""),
-                "triggers": fm.get("triggers", []),
-                "boundaries": fm.get("boundaries", []),
-                "required_tools": fm.get("required_tools", []),
-                "output_format": fm.get("output_format", ""),
-                "disable_model_invocation": fm.get("disable-model-invocation", False),
-                "user_invocable": fm.get("user-invocable", True),
-                "body": body,
-            })
-        except Exception as e:
-            logger.warning("Failed to load skill from %s: %s", fp, e)
+        if find_skill_file(item):
+            entry = _load_skill_entry(item, scope_name, "")
+            if entry:
+                skills.append(entry)
+        elif _is_category_dir(item):
+            cat_name = item.name
+            for sub in sorted(item.iterdir()):
+                if sub.is_dir():
+                    entry = _load_skill_entry(sub, scope_name, cat_name)
+                    if entry:
+                        skills.append(entry)
     return skills
+
+
+def scan_categories(scope_dir: Path) -> list[dict[str, Any]]:
+    """Scan a scope directory for category folders and return metadata."""
+    categories: list[dict[str, Any]] = []
+    skills_dir = scope_dir / "skills"
+    if not skills_dir.is_dir():
+        return categories
+    for item in sorted(skills_dir.iterdir()):
+        if not item.is_dir() or not _is_category_dir(item):
+            continue
+        desc = _parse_description_md(item / DESCRIPTION_FILE)
+        skill_count = sum(1 for sub in item.iterdir() if sub.is_dir() and find_skill_file(sub))
+        categories.append({
+            "name": item.name,
+            "label": desc.get("name") or item.name,
+            "description": desc.get("description", ""),
+            "skill_count": skill_count,
+            "path": str(item),
+        })
+    return categories
+
+
+def get_all_categories() -> list[dict[str, Any]]:
+    """Return merged category list from global + local scopes."""
+    cats: dict[str, dict[str, Any]] = {}
+    for scope_dir, scope_name in [(get_global_dir(), "Global"), (get_local_dir(), "Local")]:
+        for c in scan_categories(scope_dir):
+            c["scope"] = scope_name
+            if c["name"] in cats:
+                cats[c["name"]]["skill_count"] += c["skill_count"]
+            else:
+                cats[c["name"]] = c
+    return list(cats.values())
 
 
 def get_all_skills() -> tuple[list[dict[str, Any]], list[str]]:
@@ -372,6 +467,134 @@ def get_all_skills() -> tuple[list[dict[str, Any]], list[str]]:
 
 
 # ── Runbook Parsing ─────────────────────────────────────────────────────────
+
+def move_skill_to_category(
+    skill_name: str, category: str, scope: str = "global",
+) -> dict[str, Any]:
+    """Move a skill into a category folder. Creates the category if needed."""
+    scope_dir = get_local_dir() if scope == "local" else get_global_dir()
+    skills_dir = scope_dir / "skills"
+
+    skill_dir, skill_file = resolve_skill(skill_name)
+    if not skill_dir or not skill_file:
+        return {"action": "failed", "error": f"Skill '{skill_name}' not found"}
+
+    if not str(skill_dir.resolve()).startswith(str(skills_dir.resolve())):
+        return {"action": "failed", "error": "Skill is not in the target scope"}
+
+    try:
+        cat_slug = slugify(category)
+    except ValueError:
+        return {"action": "failed", "error": f"Invalid category name: {category}"}
+
+    cat_dir = skills_dir / cat_slug
+    target = cat_dir / skill_dir.name
+
+    if target.exists():
+        return {"action": "failed", "error": f"'{skill_dir.name}' already exists in category '{cat_slug}'"}
+
+    cat_dir.mkdir(parents=True, exist_ok=True)
+    shutil.move(str(skill_dir), str(target))
+
+    desc_path = cat_dir / DESCRIPTION_FILE
+    if not desc_path.exists():
+        desc_path.write_text(f"---\nname: {cat_slug}\ndescription: \"\"\n---\n")
+
+    return {"action": "moved", "skill": skill_name, "category": cat_slug, "path": str(target)}
+
+
+def create_category(
+    name: str, description: str = "", scope: str = "global",
+) -> dict[str, Any]:
+    """Create a category folder with DESCRIPTION.md."""
+    scope_dir = get_local_dir() if scope == "local" else get_global_dir()
+    try:
+        cat_slug = slugify(name)
+    except ValueError:
+        return {"action": "failed", "error": f"Invalid category name: {name}"}
+
+    cat_dir = scope_dir / "skills" / cat_slug
+    if cat_dir.exists():
+        return {"action": "exists", "name": cat_slug, "path": str(cat_dir)}
+
+    cat_dir.mkdir(parents=True)
+    desc_path = cat_dir / DESCRIPTION_FILE
+    desc_path.write_text(f"---\nname: {cat_slug}\ndescription: \"{description}\"\n---\n")
+
+    return {"action": "created", "name": cat_slug, "path": str(cat_dir)}
+
+
+def update_category(
+    name: str, new_name: str = "", description: str | None = None,
+) -> dict[str, Any]:
+    """Rename a category and/or update its description."""
+    cat_dir = _find_category_dir(name)
+    if not cat_dir:
+        return {"action": "failed", "error": f"Category '{name}' not found"}
+
+    desc_path = cat_dir / DESCRIPTION_FILE
+    old_meta = _parse_description_md(desc_path) if desc_path.exists() else {}
+
+    label = new_name or old_meta.get("name") or cat_dir.name
+    desc_text = description if description is not None else old_meta.get("description", "")
+    desc_path.write_text(f"---\nname: {label}\ndescription: \"{desc_text}\"\n---\n")
+
+    final_dir = cat_dir
+    if new_name:
+        try:
+            new_slug = slugify(new_name)
+        except ValueError:
+            return {"action": "failed", "error": f"Invalid category name: {new_name}"}
+        if new_slug != cat_dir.name:
+            target = cat_dir.parent / new_slug
+            if target.exists():
+                return {"action": "failed", "error": f"Category '{new_slug}' already exists"}
+            shutil.move(str(cat_dir), str(target))
+            final_dir = target
+
+    return {"action": "updated", "name": final_dir.name, "path": str(final_dir)}
+
+
+def _find_category_dir(name: str) -> Path | None:
+    """Find a category directory by name across both scopes."""
+    for scope_dir in [get_global_dir(), get_local_dir()]:
+        cat_dir = scope_dir / "skills" / name
+        if cat_dir.is_dir() and _is_category_dir(cat_dir):
+            return cat_dir
+    return None
+
+
+def promote_skill(skill_name: str, category: str = "") -> dict[str, Any]:
+    """Promote a local skill to global scope, optionally into a category."""
+    skill_dir, skill_file = resolve_skill(skill_name)
+    if not skill_dir or not skill_file:
+        return {"action": "failed", "error": f"Skill '{skill_name}' not found"}
+
+    local_dir = get_local_dir()
+    try:
+        skill_dir.resolve().relative_to(local_dir.resolve())
+    except ValueError:
+        return {"action": "failed", "error": f"Skill '{skill_name}' is already global"}
+
+    global_skills = get_global_dir() / "skills"
+    if category:
+        try:
+            cat_slug = slugify(category)
+        except ValueError:
+            return {"action": "failed", "error": f"Invalid category name: {category}"}
+        target = global_skills / cat_slug / skill_dir.name
+    else:
+        target = global_skills / skill_dir.name
+
+    if target.exists():
+        return {"action": "failed", "error": f"'{skill_dir.name}' already exists in global scope"}
+
+    target.parent.mkdir(parents=True, exist_ok=True)
+    shutil.move(str(skill_dir), str(target))
+
+    return {"action": "promoted", "skill": skill_name, "path": str(target),
+            "category": category or None}
+
 
 def parse_runbook(filepath: Path) -> list[dict[str, str]]:
     """Parse a runbook markdown table into phase dicts."""
@@ -573,6 +796,8 @@ def match_triggers(prompt: str, skills: Optional[list[dict]] = None) -> list[dic
 
     for s in skills:
         for t in s.get("triggers", []):
+            if not isinstance(t, str):
+                continue
             if t.lower() in prompt_lower:
                 matches.append({
                     "name": s["name"],
@@ -1583,5 +1808,170 @@ def _disconnect_agent_yaml(
             shutil.copy2(str(backup), str(target_path))
         return {"action": "failed", "path": str(target_path), "error": f"Write validation failed, rolled back: {e}"}
 
-    logger.info("disconnect_agent: agent=%s path=%s", agent_id, target_path)
+    logger.info("disconnect_agent_yaml: agent=%s path=%s", agent_id, target_path)
     return {"action": "uninstalled", "path": str(target_path), "diff": diff}
+
+
+# ── Usage Analytics ────────────────────────────────────────────────────────
+
+_LOG_DIR = Path.home() / ".config" / "open-skills" / "logs"
+_LOG_FILE = _LOG_DIR / "mcp_usage.jsonl"
+
+
+def get_usage_stats(days: int = 90) -> dict[str, Any]:
+    """Compute skill usage statistics from the MCP usage log.
+
+    Returns per-skill call counts, last-used timestamps, agent breakdown,
+    and a list of skills that have never been used.
+    """
+    from collections import Counter
+    cutoff = None
+    if days:
+        cutoff_dt = datetime.datetime.now(datetime.timezone.utc) - datetime.timedelta(days=days)
+        cutoff = cutoff_dt.isoformat()
+
+    skill_calls: Counter = Counter()
+    skill_last_used: dict[str, str] = {}
+    tool_calls: Counter = Counter()
+    agent_calls: Counter = Counter()
+    total = 0
+
+    if _LOG_FILE.exists():
+        for line in _LOG_FILE.read_text().splitlines():
+            line = line.strip()
+            if not line:
+                continue
+            try:
+                entry = json.loads(line)
+            except json.JSONDecodeError:
+                continue
+            ts = entry.get("ts", "")
+            if cutoff and ts < cutoff:
+                continue
+            total += 1
+            tool_calls[entry.get("tool", "unknown")] += 1
+            agent = entry.get("agent_name")
+            if agent:
+                agent_calls[agent] += 1
+
+            skill = entry.get("skill")
+            if skill:
+                skill_calls[skill] += 1
+                if skill not in skill_last_used or ts > skill_last_used[skill]:
+                    skill_last_used[skill] = ts
+
+    all_skills, _ = get_all_skills()
+    all_names = {s["name"] for s in all_skills}
+    used_names = {k for k in skill_calls}
+    never_used = sorted(all_names - used_names)
+
+    return {
+        "period_days": days,
+        "total_calls": total,
+        "tool_breakdown": dict(tool_calls.most_common()),
+        "skill_usage": dict(skill_calls.most_common()),
+        "skill_last_used": skill_last_used,
+        "agent_breakdown": dict(agent_calls.most_common()),
+        "never_used": never_used,
+        "never_used_count": len(never_used),
+        "total_skills": len(all_names),
+    }
+
+
+# ── Git Sync ───────────────────────────────────────────────────────────────
+
+def git_status() -> dict[str, Any]:
+    """Return git status of the global skills directory."""
+    repo_dir = get_global_dir()
+    git_dir = repo_dir / ".git"
+    if not git_dir.exists():
+        return {"initialized": False, "error": "Global skills directory is not a git repository"}
+
+    result: dict[str, Any] = {"initialized": True, "path": str(repo_dir)}
+    try:
+        status = subprocess.run(
+            ["git", "status", "--porcelain"],
+            cwd=str(repo_dir), capture_output=True, text=True, timeout=10,
+        )
+        lines = [l for l in status.stdout.strip().splitlines() if l.strip()]
+        result["clean"] = len(lines) == 0
+        result["changed_files"] = len(lines)
+        result["changes"] = lines[:50]
+
+        remote = subprocess.run(
+            ["git", "remote", "get-url", "origin"],
+            cwd=str(repo_dir), capture_output=True, text=True, timeout=5,
+        )
+        result["remote"] = remote.stdout.strip() if remote.returncode == 0 else None
+
+        log = subprocess.run(
+            ["git", "log", "-1", "--format=%h %s (%cr)"],
+            cwd=str(repo_dir), capture_output=True, text=True, timeout=5,
+        )
+        result["last_commit"] = log.stdout.strip() if log.returncode == 0 else None
+
+        ahead = subprocess.run(
+            ["git", "rev-list", "--count", "HEAD...@{upstream}"],
+            cwd=str(repo_dir), capture_output=True, text=True, timeout=5,
+        )
+        result["ahead"] = int(ahead.stdout.strip()) if ahead.returncode == 0 else 0
+    except Exception as e:
+        result["error"] = str(e)
+    return result
+
+
+def git_commit_and_push(message: str = "") -> dict[str, Any]:
+    """Stage all changes, commit, and push to remote."""
+    repo_dir = get_global_dir()
+    git_dir = repo_dir / ".git"
+    if not git_dir.exists():
+        return {"action": "failed", "error": "Global skills directory is not a git repository"}
+
+    try:
+        status = subprocess.run(
+            ["git", "status", "--porcelain"],
+            cwd=str(repo_dir), capture_output=True, text=True, timeout=10,
+        )
+        changes = [l for l in status.stdout.strip().splitlines() if l.strip()]
+        if not changes:
+            return {"action": "nothing", "message": "No changes to commit"}
+
+        subprocess.run(
+            ["git", "add", "-A"],
+            cwd=str(repo_dir), capture_output=True, text=True, timeout=30,
+            check=True,
+        )
+
+        if not message:
+            message = f"Update {len(changes)} file(s)"
+
+        commit = subprocess.run(
+            ["git", "commit", "-m", message],
+            cwd=str(repo_dir), capture_output=True, text=True, timeout=30,
+        )
+        if commit.returncode != 0:
+            return {"action": "failed", "error": f"Commit failed: {commit.stderr.strip()}"}
+
+        commit_hash = ""
+        log = subprocess.run(
+            ["git", "log", "-1", "--format=%h"],
+            cwd=str(repo_dir), capture_output=True, text=True, timeout=5,
+        )
+        if log.returncode == 0:
+            commit_hash = log.stdout.strip()
+
+        push = subprocess.run(
+            ["git", "push"],
+            cwd=str(repo_dir), capture_output=True, text=True, timeout=60,
+        )
+        if push.returncode != 0:
+            return {"action": "committed", "commit": commit_hash,
+                    "push_error": push.stderr.strip(),
+                    "message": f"Committed {len(changes)} file(s) but push failed"}
+
+        return {"action": "pushed", "commit": commit_hash,
+                "files": len(changes), "message": message}
+    except subprocess.TimeoutExpired:
+        return {"action": "failed", "error": "Git operation timed out"}
+    except Exception as e:
+        return {"action": "failed", "error": str(e)}
