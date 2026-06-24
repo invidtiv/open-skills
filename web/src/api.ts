@@ -57,6 +57,10 @@ export async function addSkill(path: string, scope: string): Promise<{ name: str
   return request('/skills/add', { method: 'POST', body: JSON.stringify({ path, scope }) })
 }
 
+export async function importGithub(url: string, scope: string, subdir?: string): Promise<{ name: string; source: string }> {
+  return request('/skills/import-github', { method: 'POST', body: JSON.stringify({ url, scope, subdir: subdir || '' }) })
+}
+
 export async function extractSkill(): Promise<{ name: string; path: string }> {
   return request('/skills/extract', { method: 'POST' })
 }
@@ -92,4 +96,12 @@ export async function prevRunbook(): Promise<{ message: string }> {
 
 export async function resetRunbook(): Promise<{ message: string }> {
   return request('/runbooks/reset', { method: 'POST' })
+}
+
+export async function createRunbook(name: string, scope: string, phases: { skill: string; input: string; output: string }[]): Promise<{ name: string }> {
+  return request('/runbooks', { method: 'POST', body: JSON.stringify({ name, scope, phases }) })
+}
+
+export async function deleteRunbook(name: string): Promise<{ deleted: boolean }> {
+  return request(`/runbooks/${encodeURIComponent(name)}`, { method: 'DELETE' })
 }

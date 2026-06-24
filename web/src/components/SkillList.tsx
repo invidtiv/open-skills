@@ -41,7 +41,7 @@ export default function SkillList({ skills, shadowed }: Props) {
             <div className="flex flex-wrap gap-1.5">
               {s.triggers.slice(0, 3).map((t, i) => (
                 <span key={i} className="text-xs bg-bg-code border border-border rounded px-2 py-0.5 text-text-dim">
-                  {t}
+                  {typeof t === 'string' ? t : JSON.stringify(t)}
                 </span>
               ))}
               {s.triggers.length > 3 && (

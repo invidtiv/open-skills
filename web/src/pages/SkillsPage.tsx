@@ -1,7 +1,7 @@
 import { useState } from 'react'
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query'
 import { useNavigate } from 'react-router-dom'
-import { listSkills, createSkill, addSkill } from '../api'
+import { listSkills, createSkill, addSkill, importGithub } from '../api'
 import { useToast } from '../components/Toast'
 import SkillList from '../components/SkillList'
 
@@ -9,6 +9,7 @@ export default function SkillsPage() {
   const { data, isLoading } = useQuery({ queryKey: ['skills'], queryFn: listSkills })
   const [showCreate, setShowCreate] = useState(false)
   const [showAdd, setShowAdd] = useState(false)
+  const [showGithub, setShowGithub] = useState(false)
 
   return (
     <div className="p-6">
@@ -21,10 +22,16 @@ export default function SkillsPage() {
         </div>
         <div className="flex gap-2">
           <button
+            onClick={() => setShowGithub(true)}
+            className="px-4 py-2 text-sm font-medium bg-bg-card border border-border rounded-lg text-text-dim hover:text-text hover:border-accent transition-colors"
+          >
+            Import from GitHub
+          </button>
+          <button
             onClick={() => setShowAdd(true)}
             className="px-4 py-2 text-sm font-medium bg-bg-card border border-border rounded-lg text-text-dim hover:text-text hover:border-accent transition-colors"
           >
-            Import Skill
+            Import Local
           </button>
           <button
             onClick={() => setShowCreate(true)}
@@ -43,6 +50,7 @@ export default function SkillsPage() {
 
       {showCreate && <CreateDialog onClose={() => setShowCreate(false)} />}
       {showAdd && <AddDialog onClose={() => setShowAdd(false)} />}
+      {showGithub && <GithubDialog onClose={() => setShowGithub(false)} />}
     </div>
   )
 }
@@ -152,6 +160,73 @@ function AddDialog({ onClose }: { onClose: () => void }) {
             className="px-4 py-2 text-sm font-medium bg-accent/10 border border-accent/30 rounded-lg text-accent hover:bg-accent/20 disabled:opacity-50"
           >
             {mutation.isPending ? 'Importing...' : 'Import'}
+          </button>
+        </div>
+      </form>
+    </Overlay>
+  )
+}
+
+function GithubDialog({ onClose }: { onClose: () => void }) {
+  const [url, setUrl] = useState('')
+  const [scope, setScope] = useState('global')
+  const [subdir, setSubdir] = useState('')
+  const queryClient = useQueryClient()
+  const navigate = useNavigate()
+  const { toast } = useToast()
+
+  const mutation = useMutation({
+    mutationFn: () => importGithub(url, scope, subdir),
+    onSuccess: (data) => {
+      queryClient.invalidateQueries({ queryKey: ['skills'] })
+      toast(`Imported '${data.name}' from GitHub`, 'success')
+      onClose()
+      navigate(`/skills/${encodeURIComponent(data.name)}`)
+    },
+    onError: (err: Error) => toast(err.message, 'error'),
+  })
+
+  return (
+    <Overlay onClose={onClose}>
+      <h3 className="text-lg font-semibold mb-1">Import from GitHub</h3>
+      <p className="text-xs text-text-dim mb-4">Clone a skill directly from a GitHub repository.</p>
+      <form onSubmit={e => { e.preventDefault(); mutation.mutate() }}>
+        <label className="block text-xs font-medium text-text-dim mb-1">Repository URL</label>
+        <input
+          type="text"
+          value={url}
+          onChange={e => setUrl(e.target.value)}
+          placeholder="https://github.com/owner/repo or owner/repo"
+          autoFocus
+          className="w-full bg-bg-code border border-border rounded-lg px-3 py-2 text-sm text-text focus:border-accent focus:outline-none mb-3"
+        />
+        <label className="block text-xs font-medium text-text-dim mb-1">Subdirectory (optional)</label>
+        <input
+          type="text"
+          value={subdir}
+          onChange={e => setSubdir(e.target.value)}
+          placeholder="e.g. skills/my-skill"
+          className="w-full bg-bg-code border border-border rounded-lg px-3 py-2 text-sm text-text focus:border-accent focus:outline-none mb-3"
+        />
+        <label className="block text-xs font-medium text-text-dim mb-1">Scope</label>
+        <select
+          value={scope}
+          onChange={e => setScope(e.target.value)}
+          className="w-full bg-bg-code border border-border rounded-lg px-3 py-2 text-sm text-text focus:border-accent focus:outline-none mb-4"
+        >
+          <option value="global">Global</option>
+          <option value="local">Local</option>
+        </select>
+        <div className="flex justify-end gap-2">
+          <button type="button" onClick={onClose} className="px-4 py-2 text-sm text-text-dim hover:text-text">
+            Cancel
+          </button>
+          <button
+            type="submit"
+            disabled={!url.trim() || mutation.isPending}
+            className="px-4 py-2 text-sm font-medium bg-accent/10 border border-accent/30 rounded-lg text-accent hover:bg-accent/20 disabled:opacity-50"
+          >
+            {mutation.isPending ? 'Cloning...' : 'Import'}
           </button>
         </div>
       </form>

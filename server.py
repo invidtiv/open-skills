@@ -7,6 +7,8 @@ Wraps core.py as a REST API and serves the built SPA.
 import os
 import re
 import shutil
+import subprocess
+import tempfile
 from pathlib import Path
 
 from fastapi import FastAPI, HTTPException, Request, Response
@@ -51,6 +53,11 @@ class AddSkillRequest(BaseModel):
     path: str
     scope: str = "global"
 
+class ImportGithubRequest(BaseModel):
+    url: str
+    scope: str = "global"
+    subdir: str = ""
+
 class ValidationCheck(BaseModel):
     label: str
     passed: bool
@@ -93,9 +100,9 @@ def list_skills():
                 "scope": s["scope"],
                 "path": str(s["path"]),
                 "description": s["description"],
-                "triggers": s["triggers"],
-                "boundaries": s["boundaries"],
-                "required_tools": s["required_tools"],
+                "triggers": [str(t) if not isinstance(t, str) else t for t in (s["triggers"] or [])],
+                "boundaries": [str(b) if not isinstance(b, str) else b for b in (s["boundaries"] or [])],
+                "required_tools": [str(r) if not isinstance(r, str) else r for r in (s["required_tools"] or [])],
                 "output_format": s["output_format"],
                 "disable_model_invocation": s.get("disable_model_invocation", False),
                 "user_invocable": s.get("user_invocable", True),
@@ -285,6 +292,102 @@ def add_skill(req: AddSkillRequest):
     return {"name": safe, "scope": req.scope, "path": str(target_dir)}
 
 
+def _parse_github_url(url: str) -> tuple[str, str, str, str]:
+    """Parse a GitHub URL into (owner, repo, branch, subdir).
+
+    Supports:
+      https://github.com/owner/repo
+      https://github.com/owner/repo/tree/branch/path/to/skill
+      github.com/owner/repo
+      owner/repo
+    """
+    url = url.strip().rstrip("/")
+    if url.startswith("git@github.com:"):
+        url = url.replace("git@github.com:", "https://github.com/")
+    if not url.startswith("http"):
+        if "/" in url and not url.startswith("github.com"):
+            url = f"https://github.com/{url}"
+        else:
+            url = f"https://{url}"
+
+    url = re.sub(r"\.git$", "", url)
+    m = re.match(r"https?://github\.com/([^/]+)/([^/]+)(?:/tree/([^/]+)(?:/(.+))?)?", url)
+    if not m:
+        raise ValueError(f"Could not parse GitHub URL: {url}")
+    owner, repo, branch, subdir = m.group(1), m.group(2), m.group(3) or "", m.group(4) or ""
+    return owner, repo, branch, subdir
+
+
+@app.post("/api/skills/import-github")
+def import_github(req: ImportGithubRequest):
+    try:
+        owner, repo, branch, url_subdir = _parse_github_url(req.url)
+    except ValueError as e:
+        raise HTTPException(400, str(e))
+
+    subdir = req.subdir or url_subdir
+    clone_url = f"https://github.com/{owner}/{repo}.git"
+
+    with tempfile.TemporaryDirectory() as tmp:
+        cmd = ["git", "clone", "--depth", "1"]
+        if branch:
+            cmd += ["--branch", branch]
+        cmd += [clone_url, tmp + "/repo"]
+
+        result = subprocess.run(cmd, capture_output=True, text=True, timeout=60)
+        if result.returncode != 0:
+            raise HTTPException(
+                400,
+                f"git clone failed: {result.stderr.strip() or result.stdout.strip()}",
+            )
+
+        src = Path(tmp) / "repo"
+        if subdir:
+            src = src / subdir
+
+        if not src.is_dir():
+            raise HTTPException(400, f"Subdirectory '{subdir}' not found in repo")
+
+        skill_file = core.find_skill_file(src)
+        if not skill_file:
+            subdirs = [d.name for d in sorted(src.iterdir()) if d.is_dir() and core.find_skill_file(d)]
+            if subdirs:
+                raise HTTPException(
+                    400,
+                    f"No skill.md in root, but found skills in subdirectories: {', '.join(subdirs)}. "
+                    f"Specify one with the subdir field.",
+                )
+            raise HTTPException(400, f"No skill.md found in {owner}/{repo}" + (f"/{subdir}" if subdir else ""))
+
+        fm, _ = core.parse_frontmatter(skill_file.read_text())
+        skill_name = fm.get("name", src.name)
+
+        try:
+            safe = core.slugify(skill_name)
+        except ValueError:
+            safe = re.sub(r"[^a-z0-9-]", "-", repo.lower())
+            safe = re.sub(r"-+", "-", safe).strip("-")
+        if not safe:
+            raise HTTPException(400, "Could not derive a valid skill name")
+
+        base_dir = core.get_local_dir() if req.scope == "local" else core.get_global_dir()
+        target_dir = base_dir / "skills" / safe
+
+        if target_dir.exists():
+            raise HTTPException(409, f"Skill '{safe}' already exists")
+
+        shutil.rmtree(src / ".git", ignore_errors=True)
+        target_dir.mkdir(parents=True)
+        shutil.copytree(src, target_dir, dirs_exist_ok=True)
+
+        return {
+            "name": safe,
+            "scope": req.scope,
+            "path": str(target_dir),
+            "source": f"https://github.com/{owner}/{repo}" + (f"/tree/{branch}/{subdir}" if subdir else ""),
+        }
+
+
 @app.post("/api/skills/extract")
 def extract_skill():
     from openskills import get_last_session_transcript, get_api_key, call_llm_completion, extract_skill_name_from_md
@@ -396,6 +499,46 @@ def prev_runbook():
 @app.post("/api/runbooks/reset")
 def reset_runbook():
     return core.reset_runbook()
+
+
+class CreateRunbookRequest(BaseModel):
+    name: str
+    scope: str = "local"
+    phases: list[dict]
+
+
+@app.post("/api/runbooks")
+def create_runbook(req: CreateRunbookRequest):
+    safe = re.sub(r'[^a-z0-9-]', '-', req.name.lower().strip())
+    safe = re.sub(r'-+', '-', safe).strip('-')
+    if not safe:
+        raise HTTPException(400, "Invalid runbook name")
+
+    base_dir = core.get_local_dir() if req.scope == "local" else core.get_global_dir()
+    rb_dir = base_dir / "runbooks"
+    rb_dir.mkdir(parents=True, exist_ok=True)
+    rb_file = rb_dir / f"{safe}.md"
+
+    if rb_file.exists():
+        raise HTTPException(409, f"Runbook '{safe}' already exists")
+
+    lines = [f"# Runbook: {req.name}", "",
+             "Phase | Active Skill | Input | Expected Verified Output",
+             "---|---|---|---"]
+    for i, p in enumerate(req.phases, 1):
+        lines.append(f"{i:02d} | {p.get('skill','')} | {p.get('input','')} | {p.get('output','')}")
+
+    rb_file.write_text("\n".join(lines) + "\n")
+    return {"name": safe, "scope": req.scope, "path": str(rb_file)}
+
+
+@app.delete("/api/runbooks/{name}")
+def delete_runbook(name: str):
+    rb = core.resolve_runbook(name)
+    if not rb:
+        raise HTTPException(404, f"Runbook '{name}' not found")
+    rb.unlink()
+    return {"deleted": True, "name": name}
 
 
 # ── Helpers ────────────────────────────────────────────────────────────────
